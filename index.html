@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Loan Tracker</title>
+<meta name="theme-color" content="#0f2e4a">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Loan Tracker">
+<style>
+:root{
+  --bg:#f3f5f8;--card:#ffffff;--ink:#15202b;--muted:#687587;--line:#e2e7ee;
+  --brand:#0f2e4a;--accent:#0f766e;--accent-ink:#ffffff;--accent-soft:#e3f3f0;
+  --warn:#a15c07;--warn-soft:#fff3e0;--ok:#15803d;--ok-soft:#e6f5ea;--danger:#b42318;--danger-soft:#fdecea;
+  --r:14px;--shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0d1319;--card:#151e28;--ink:#e6ecf2;--muted:#95a3b3;--line:#243140;
+  --brand:#0a2236;--accent:#2bb3a3;--accent-ink:#06201d;--accent-soft:#113029;
+  --warn:#f2a54a;--warn-soft:#33240e;--ok:#5ad08a;--ok-soft:#0f2a1a;--danger:#f58b82;--danger-soft:#3a1714;
+  --shadow:none;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px 96px}
+header.top{background:var(--brand);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 72px}
+header.top .row{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
+.who{font-size:13px;opacity:.9;text-align:right}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.16);margin-left:6px;text-transform:uppercase;letter-spacing:.4px}
+.balance{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;margin-top:-56px;border:1px solid var(--line)}
+.balance .lbl{color:var(--muted);font-size:13px}
+.balance .big{font-size:32px;font-weight:700;letter-spacing:-.5px;margin:2px 0 10px;font-variant-numeric:tabular-nums}
+.bar{height:10px;background:var(--line);border-radius:999px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.stat{background:var(--bg);border-radius:10px;padding:10px}
+.stat b{display:block;font-size:15px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.notice{border-radius:var(--r);padding:14px 16px;margin-top:14px;border:1px solid transparent}
+.notice.warn{background:var(--warn-soft);border-color:rgba(161,92,7,.25)}
+.notice.ok{background:var(--ok-soft);border-color:rgba(21,128,61,.25)}
+.notice h3{margin:0 0 4px;font-size:15px}
+.notice p{margin:0 0 10px;font-size:14px}
+.tabs{display:flex;gap:6px;margin:18px 0 12px;background:var(--card);border:1px solid var(--line);padding:4px;border-radius:12px}
+.tabs button{flex:1;border:0;background:transparent;padding:10px 6px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--accent);color:var(--accent-ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.list .item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .item:last-child{border-bottom:0}
+.item .main{flex:1;min-width:0}
+.item .amt{font-weight:700;font-variant-numeric:tabular-nums}
+.item .sub{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.pill.Pending{background:var(--warn-soft);color:var(--warn)}
+.pill.Confirmed{background:var(--ok-soft);color:var(--ok)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 4px 8px}
+form .f{margin-bottom:14px}
+label.l{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+input[type=file]{width:100%;font-size:14px}
+textarea{min-height:110px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;background:var(--accent);color:var(--accent-ink);text-decoration:none}
+.btn.block{width:100%}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:var(--danger-soft);color:var(--danger)}
+.btn:disabled{opacity:.55;cursor:default}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.btns .btn{flex:1 1 140px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.check input{margin-top:3px;width:18px;height:18px;flex:none}
+.kv{width:100%;border-collapse:collapse}
+.kv td{padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+.kv td:first-child{color:var(--muted);width:42%;padding-right:10px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.tbl tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto}
+.people{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.person{padding:14px}
+.person .n{font-weight:700}
+.person .v{font-size:22px;font-weight:700;margin:4px 0;font-variant-numeric:tabular-nums}
+.person .s{font-size:12px;color:var(--muted)}
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(8,15,25,.55);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.overlay.show{display:flex}
+.sheet{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px 24px}
+@media (min-width:700px){.overlay{align-items:center}.sheet{border-radius:18px}}
+.sheet h2{margin:0 0 12px;font-size:18px}
+.sheet .x{float:right;border:0;background:var(--bg);border-radius:999px;width:32px;height:32px;cursor:pointer;font-size:18px;line-height:1}
+.sig{width:100%;height:170px;border:1.5px dashed var(--muted);border-radius:10px;background:#fff;touch-action:none;display:block}
+.viewer img{max-width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+.decl{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:10px;font-size:14px;z-index:80;max-width:90%;display:none}
+.toast.err{background:var(--danger);color:#fff}
+.busy{position:fixed;inset:0;background:rgba(8,15,25,.35);display:none;align-items:center;justify-content:center;z-index:70}
+.busy.show{display:flex}
+.spinner{width:42px;height:42px;border-radius:50%;border:4px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.member{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.member:last-child{border-bottom:0}
+.member .main{flex:1;min-width:0}
+.member .nm{font-weight:700}
+.member .em{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill.owner{background:var(--brand);color:#fff}
+.pill.admin{background:var(--accent-soft);color:var(--accent)}
+.pill.receiver{background:var(--warn-soft);color:var(--warn)}
+.pill.off{background:var(--line);color:var(--muted)}
+.danger-zone{border:1px solid rgba(180,35,24,.35);background:var(--danger-soft);border-radius:var(--r);padding:16px}
+.danger-zone h3{margin:0 0 6px;font-size:15px;color:var(--danger)}
+.topbtn{border:0;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none}
+.topbtn.spin{animation:spin 1s linear infinite}
+.upd{position:fixed;top:0;left:0;right:0;z-index:60;display:none;justify-content:center;padding:10px 16px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14px;cursor:pointer;text-align:center}
+.upd.show{display:flex}
+.stamp{font-size:12px;color:var(--muted);text-align:center;margin-top:10px}
+.stamp.old{color:var(--warn);font-weight:700}
+.upd.warn{background:var(--warn);color:#fff}
+.split{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);margin-top:8px}
+@media (max-width:380px){.stats{grid-template-columns:1fr 1fr}.people{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="upd" id="upd" onclick="reload(true)">New updates available · Tap to refresh</div>
+<a class="upd warn" id="stale" target="_top" href="#">This page was open for a long time · Tap here to reload</a>
+<header class="top"><div class="row"><h1 id="appName">Loan Tracker</h1><div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="topbtn" id="refBtn" onclick="reload(true)" aria-label="Refresh" title="Refresh">↻</button></div></div></header>
+<div class="wrap" id="app"><div class="balance"><div class="lbl">Loading…</div></div></div>
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+<div class="busy" id="busy"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================
+//  PASTE your Apps Script Web App URL (ends with /exec) between the quotes:
+var API_URL = 'https://script.google.com/macros/s/AKfycbzhgTZV2Z-UPsdGjbnObmA9FCgx06oWH0wf3YlYCm5OeQGaEUV1B0a7Q8mLjFvMiQrXkQ/exec';
+// =====================================================================
+var TOKEN = (function(){
+  var t = '';
+  try { t = new URLSearchParams(location.search).get('t') || ''; } catch(e) {}
+  try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
+  return t;
+})();
+var HOSTED = !(window.google && google.script && google.script.run);
+var S = { data: null, tab: 'payments' };
+
+// ---------- helpers ----------
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function usd(n){ return '$' + (Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function isAdmin(){ return S.data && (S.data.user.role === 'owner' || S.data.user.role === 'admin'); }
+function isOwner(){ return S.data && S.data.user.role === 'owner'; }
+function isReceiver(){ return S.data && S.data.user.role === 'receiver'; }
+function closed(){ return S.data && S.data.settlement.closed; }
+function today(){ var d = new Date(); return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); }
+function busy(on){ $('busy').classList.toggle('show', !!on); }
+function toast(msg, err){ var t=$('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; }, err?6000:3000); }
+function call(fn){
+  var args = Array.prototype.slice.call(arguments,1);
+  if (HOSTED) {
+    return fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+      .then(function(r){ if (!r.ok) throw new Error('Server error (' + r.status + '). Please try again.'); return r.json(); },
+            function(){ throw new Error('Could not connect. Check your internet and try again.'); })
+      .then(function(j){ if (!j || !j.ok) throw new Error((j && j.error) || 'Something went wrong.'); return j.result; });
+  }
+  return new Promise(function(res, rej){
+    var r = google.script.run.withSuccessHandler(res).withFailureHandler(function(e){ rej(e && e.message ? e : new Error(String(e))); });
+    r[fn].apply(r, args);
+  });
+}
+function run(fn){
+  var args = Array.prototype.slice.call(arguments);
+  busy(true);
+  return call.apply(null, args).then(function(r){ busy(false); return r; }, function(e){ busy(false); toast(e.message.replace(/^Exception:\s*/,''), true); throw e; });
+}
+function findTxn(id){ return S.data.transactions.filter(function(t){ return t.id === id; })[0]; }
+
+// ---------- modal ----------
+function openModal(html, onMount){ $('sheet').innerHTML = html; $('overlay').classList.add('show'); document.body.style.overflow='hidden'; if (onMount) setTimeout(onMount, 30); }
+function closeModal(){ $('overlay').classList.remove('show'); $('sheet').innerHTML=''; document.body.style.overflow=''; }
+$('overlay').addEventListener('click', function(e){ if (e.target.id === 'overlay') closeModal(); });
+function modalHead(title){ return '<button class="x" onclick="closeModal()" aria-label="Close">×</button><h2>' + esc(title) + '</h2>'; }
+
+// ---------- render ----------
+function render(){
+  var d = S.data, s = d.summary;
+  S.loadedAt = new Date(); S.dirty = false; $('upd').classList.remove('show');
+  $('appName').textContent = d.appName;
+  $('who').innerHTML = esc(d.user.name) + '<span class="chip">' + esc(d.user.role) + '</span>';
+  var h = '';
+  h += '<div class="balance"><div class="lbl">Remaining balance</div><div class="big">' + usd(s.remaining) + '</div>' +
+       '<div class="bar"><i style="width:' + s.progress + '%"></i></div>' +
+       '<div class="stats"><div class="stat"><b>' + usd(s.confirmed) + '</b><span>Paid &amp; confirmed</span></div>' +
+       '<div class="stat"><b>' + usd(s.pending) + '</b><span>Awaiting confirmation</span></div>' +
+       '<div class="stat"><b>' + s.progress + '%</b><span>of ' + usd(s.total) + '</span></div></div></div>';
+
+  if (closed()) {
+    h += '<div class="notice ok"><h3>Account closed, settled in full</h3><p>Final settlement signed by <b>' + esc(d.settlement.signerName) + '</b> on ' + esc(d.settlement.closedAt) + '. The signed certificate was emailed to everyone.</p></div>';
+  }
+  var pending = d.transactions.filter(function(t){ return t.status === 'Pending'; });
+  if (isReceiver() && pending.length && !closed()) {
+    h += '<div class="notice warn"><h3>' + pending.length + ' payment' + (pending.length>1?'s':'') + ' waiting for your confirmation</h3><p>Please confirm only after the money has reached your account.</p>' +
+      pending.map(function(t){ return '<div class="btns" style="margin-top:6px"><button class="btn block" onclick="openSign(\'' + t.id + '\')">Review &amp; confirm ' + usd(t.amount) + ' (' + esc(t.dateSent) + ')</button></div>'; }).join('') + '</div>';
+  }
+  if (isReceiver() && d.settlement.eligible) {
+    h += '<div class="notice ok"><h3>Full amount received</h3><p>All payments are confirmed. Please complete the final settlement declaration to close the account.</p><button class="btn block" onclick="openFinal()">Sign final settlement</button></div>';
+  }
+  if (isAdmin() && d.settlement.eligible) {
+    h += '<div class="notice ok"><h3>Full amount confirmed</h3><p>Waiting for the receiver to sign the final settlement declaration in the app.</p></div>';
+  }
+
+  var tabs = [['payments','Payments']];
+  if (isAdmin() && !closed()) tabs.push(['add','Add']);
+  tabs.push(['summary','Summary']);
+  if (isOwner()) tabs.push(['manage','Manage']);
+  if (!tabs.some(function(t){ return t[0] === S.tab; })) S.tab = 'payments';
+  h += '<div class="tabs">' + tabs.map(function(t){ return '<button class="' + (S.tab===t[0]?'on':'') + '" onclick="setTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join('') + '</div>';
+
+  if (S.tab === 'payments') h += renderPayments();
+  else if (S.tab === 'add') h += renderForm(null);
+  else if (S.tab === 'manage') h += renderManage();
+  else h += renderSummary();
+  h += '<div class="stamp" id="stamp"></div>';
+  h += '<div class="btns" style="margin-top:14px"><button class="btn ghost block" onclick="openHomeHelp()">📱 Add Loan Tracker to your phone\'s home screen</button></div>';
+  $('app').innerHTML = h;
+  S.checkedAt = new Date(); S.fails = 0; $('stale').classList.remove('show'); paintStamp();
+  if (S.tab === 'add') bindForm(null);
+}
+function setTab(t){ S.tab = t; render(); window.scrollTo(0,0); }
+
+function renderPayments(){
+  var list = S.data.transactions;
+  if (!list.length) return '<div class="card empty">No payments yet.</div>';
+  return '<div class="card list">' + list.map(function(t){
+    var sub = esc(t.dateSent) + (isAdmin() ? ' · ' + esc(t.sentByLabel) : '') + ' · ' + esc(t.id);
+    return '<div class="item" onclick="openDetail(\'' + t.id + '\')"><div class="main"><div class="amt">' + usd(t.amount) + '</div><div class="sub">' + sub + '</div></div><span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span></div>';
+  }).join('') + '</div>';
+}
+
+function renderSummary(){
+  var d = S.data, h = '';
+  if (isAdmin()) {
+    h += '<div class="section-title">By person (all time)</div><div class="people">';
+    Object.keys(d.perPerson).forEach(function(n){
+      var p = d.perPerson[n];
+      h += '<div class="card person"><div class="n">' + esc(n) + '</div><div class="v">' + usd(p.confirmed) + '</div><div class="s">confirmed · ' + usd(p.pending) + ' pending · ' + p.count + ' payment' + (p.count===1?'':'s') + '</div></div>';
+    });
+    h += '</div>';
+  }
+  h += '<div class="section-title">Month by month</div>';
+  if (!d.monthly.length) h += '<div class="card empty">Nothing yet.</div>';
+  else {
+    var names = isAdmin() ? d.people : [];
+    h += '<div class="card scroll"><table class="tbl"><tr><th>Month</th><th>Confirmed</th><th>Pending</th>' + names.map(function(n){ return '<th>' + esc(n) + '</th>'; }).join('') + '</tr>' +
+      d.monthly.map(function(m){ return '<tr><td>' + esc(m.label) + '</td><td>' + usd(m.confirmed) + '</td><td>' + usd(m.pending) + '</td>' + names.map(function(n){ return '<td>' + usd((m.byPerson||{})[n]||0) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
+  }
+  return h;
+}
+
+// ---------- owner: manage ----------
+var ROLE_LABEL = { owner: 'Owner', admin: 'Admin', receiver: 'Receiver' };
+function findUser(email){ return (S.data.users||[]).filter(function(u){ return u.email === email; })[0]; }
+
+function renderManage(){
+  var users = S.data.users || [], h = '';
+  var groups = [['owner','Owner'],['admin','Admins'],['receiver','Receivers']];
+  h += '<div class="section-title">Members</div><div class="card">';
+  groups.forEach(function(g){
+    users.filter(function(u){ return u.role === g[0]; }).forEach(function(u){
+      var status = !u.active ? '<span class="pill off">Inactive</span>' : '<span class="pill ' + u.role + '">' + ROLE_LABEL[u.role] + '</span>';
+      h += '<div class="member" onclick="openMember(\'' + esc(u.email) + '\')"><div class="main"><div class="nm">' + esc(u.name) + '</div><div class="em">' + esc(u.email) + '</div>' +
+           '<div class="em">' + (u.linkSentAt ? 'Link sent ' + esc(u.linkSentAt) : 'Link not sent yet') + '</div></div>' + status + '</div>';
+    });
+  });
+  if (!users.length) h += '<div class="empty">No members.</div>';
+  h += '</div><div class="btns"><button class="btn block" onclick="openMember(null)">+ Add member</button></div>';
+
+  var ls = S.data.linkSettings || { githubUrl: '', mode: 'google' };
+  h += '<div class="section-title">App link in emails</div><div class="card" style="padding:16px">' +
+    '<p style="margin:0 0 10px;font-size:14px">Both versions always work with the same data. This only decides which link goes into emails.</p>' +
+    '<div class="f"><label class="l">GitHub app address</label><input type="text" id="ghUrl" inputmode="url" autocapitalize="off" placeholder="https://yourname.github.io/loan-tracker/" value="' + esc(ls.githubUrl) + '"></div>' +
+    '<label class="check" style="margin-bottom:8px"><input type="radio" name="lmode" value="google"' + (ls.mode==='google'?' checked':'') + '><span><b>Google version</b> (script.google.com, shows the Google bar)</span></label>' +
+    '<label class="check" style="margin-bottom:12px"><input type="radio" name="lmode" value="github"' + (ls.mode==='github'?' checked':'') + '><span><b>GitHub version</b> (no Google bar, own app icon)</span></label>' +
+    '<button class="btn block" onclick="saveLinkSettings()">Save</button>' +
+    '<div class="hint" style="margin-top:8px">Currently emails use: <b>' + (ls.mode==='github' ? 'GitHub' : 'Google') + '</b>. After switching, use "Email the access link again" for each member so they get the new link.</div></div>';
+
+  h += '<div class="section-title">Reports</div><div class="card" style="padding:16px"><p style="margin:0 0 10px;font-size:14px">Send this month\'s report to everyone now (useful for testing). The automatic report goes out on the 5th of every month.</p><button class="btn ghost block" onclick="sendReport()">Send report now</button></div>';
+
+  {
+    h += '<div class="section-title">Reset</div><div class="danger-zone"><h3>Reset all payments</h3>' +
+      '<p style="margin:0 0 10px;font-size:14px">Deletes every payment, confirmation and the final settlement, and numbering restarts at LT-0001. Members stay as they are. Use this once testing is finished, before adding the real receiver.</p>' +
+      '<label class="check" style="background:var(--card);margin-bottom:10px"><input type="checkbox" id="rsFiles" checked><span>Also move test receipts, signatures and reports to Google Drive trash</span></label>' +
+      '<div class="f"><label class="l">Type RESET to confirm</label><input type="text" id="rsText" autocomplete="off" autocapitalize="characters" placeholder="RESET"></div>' +
+      '<button class="btn danger block" onclick="doReset()">Reset everything</button></div>';
+  }
+  return h;
+}
+
+function openMember(email){
+  var u = email ? findUser(email) : null;
+  var isOwnerRow = u && u.role === 'owner';
+  function opt(v, l, sel){ return '<option value="' + v + '"' + (v===sel?' selected':'') + '>' + l + '</option>'; }
+  var h = modalHead(u ? 'Edit member' : 'Add member') + '<form id="mbForm" onsubmit="return false">' +
+    '<div class="f"><label class="l">Name</label><input type="text" name="name" value="' + esc(u ? u.name : '') + '" placeholder="e.g. Receiver"></div>' +
+    '<div class="f"><label class="l">Email</label><input type="text" name="email" inputmode="email" autocapitalize="off" value="' + esc(u ? u.email : '') + '" placeholder="name@gmail.com"></div>';
+  if (isOwnerRow) {
+    h += '<div class="f"><label class="l">Role</label><div class="hint" style="margin:0">Owner (cannot be changed or removed)</div></div>';
+  } else {
+    h += '<div class="f"><label class="l">Role</label><select name="role">' + opt('admin','Admin: full access, can add payments', u ? u.role : 'receiver') + opt('receiver','Receiver: limited view, confirms and signs', u ? u.role : 'receiver') + '</select></div>';
+    if (u) h += '<div class="f"><label class="check"><input type="checkbox" name="active"' + (u.active ? ' checked' : '') + '><span>Active (unticked = their link stops working, but they stay in the list)</span></label></div>';
+  }
+  if (u && (u.googleLink || u.githubLink)) {
+    h += '<div class="f"><label class="l">Personal links (for testing; do not share)</label><div class="btns" style="margin-top:0">';
+    if (u.googleLink) h += '<button type="button" class="btn ghost" onclick="copyText(\'' + esc(u.googleLink) + '\')">Copy Google link</button>';
+    if (u.githubLink) h += '<button type="button" class="btn ghost" onclick="copyText(\'' + esc(u.githubLink) + '\')">Copy GitHub link</button>';
+    h += '</div></div>';
+  }
+  h += '<div class="f"><label class="check"><input type="checkbox" name="sendLink"' + (u ? '' : ' checked') + '><span>Email the access link ' + (u ? 'again ' : '') + 'after saving</span></label></div>' +
+    '<button class="btn block" id="mbSave">' + (u ? 'Save changes' : 'Add member') + '</button>';
+  if (u && !isOwnerRow) {
+    h += '<div class="btns"><button class="btn ghost" id="mbNewLink">New link</button><button class="btn danger" id="mbDelete">Delete member</button></div>' +
+         '<div class="hint" style="margin-top:8px">New link: their old link stops working and a fresh one is emailed. Use it if a link was forwarded by mistake.</div>';
+  }
+  h += '</form>';
+  openModal(h, function(){
+    var f = $('mbForm');
+    $('mbSave').addEventListener('click', function(){
+      var p = { origEmail: u ? u.email : '', name: f.elements.name.value.trim(), email: f.elements.email.value.trim(),
+        role: isOwnerRow ? 'owner' : f.elements.role.value, active: u && !isOwnerRow ? f.elements.active.checked : true, sendLink: f.elements.sendLink.checked };
+      if (p.name.length < 2) return toast('Please enter a name.', true);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) return toast('Please enter a valid email.', true);
+      run('apiSaveUser', TOKEN, p).then(function(d){ S.data = d; closeModal(); render(); toast(u ? 'Member updated' + (p.sendLink ? ', link emailed' : '') : 'Member added' + (p.sendLink ? ', link emailed' : '')); }, function(){});
+    });
+    if ($('mbDelete')) $('mbDelete').addEventListener('click', function(){
+      if (!confirm('Delete ' + u.name + ' (' + u.email + ')? Their link will stop working immediately. Payment history is not affected.')) return;
+      run('apiDeleteUser', TOKEN, u.email).then(function(d){ S.data = d; closeModal(); render(); toast('Member deleted'); }, function(){});
+    });
+    if ($('mbNewLink')) $('mbNewLink').addEventListener('click', function(){
+      if (!confirm('Issue a new link for ' + u.name + '? The old link stops working.')) return;
+      run('apiNewLink', TOKEN, u.email).then(function(d){ S.data = d; closeModal(); render(); toast('New link emailed to ' + u.name); }, function(){});
+    });
+  });
+}
+
+function saveLinkSettings(){
+  var mode = (document.querySelector('input[name=lmode]:checked') || {}).value || 'google';
+  var url = $('ghUrl').value.trim();
+  run('apiSetLinkSettings', TOKEN, { githubUrl: url, mode: mode }).then(function(d){ S.data = d; render(); toast('Saved. Emails now use the ' + (mode === 'github' ? 'GitHub' : 'Google') + ' link.'); }, function(){});
+}
+function copyText(t){
+  function done(){ toast('Link copied'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function(){ prompt('Copy this link:', t); });
+  else prompt('Copy this link:', t);
+}
+
+function doReset(){
+  var txt = $('rsText').value.trim();
+  if (txt !== 'RESET') return toast('Type RESET (capital letters) to confirm.', true);
+  if (!confirm('Delete ALL payments, confirmations and the settlement? This cannot be undone.')) return;
+  run('apiResetAll', TOKEN, { confirm: txt, trashFiles: $('rsFiles').checked }).then(function(d){ S.data = d; S.tab = 'payments'; render(); toast('Reset done. Starting fresh.'); }, function(){});
+}
+
+// ---------- detail ----------
+function openDetail(id){
+  var t = findTxn(id); if (!t) return;
+  var rows = [['Reference', esc(t.id)], ['Amount', '<b>' + usd(t.amount) + '</b>'], ['Date sent', esc(t.dateSent)], ['Status', '<span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span>']];
+  if (isAdmin()) {
+    rows.push(['Sent by', esc(t.sentByLabel)]);
+    if (t.method) rows.push(['Method', esc(t.method)]);
+    if (t.reference) rows.push(['Transfer ref #', esc(t.reference)]);
+    if (t.localAmount) rows.push(['Local amount', esc(t.localAmount + ' ' + t.localCurrency)]);
+    if (t.notes) rows.push(['Notes', esc(t.notes)]);
+    rows.push(['Added', esc(t.addedBy + ', ' + t.createdAt)]);
+    rows.push(['Receiver sees', t.hasReceiverCopy ? 'Separate receiver copy' : 'Same receipt (full)']);
+    if (t.status === 'Pending') rows.push(['Reminders sent', String(t.reminderCount || 0)]);
+  }
+  if (t.status === 'Confirmed') { rows.push(['Confirmed on', esc(t.confirmedAt)]); rows.push(['Signed by', esc(t.signerName)]); }
+  var h = modalHead('Payment ' + t.id) + '<table class="kv">' + rows.map(function(r){ return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
+  h += '<div class="btns">';
+  if (t.hasReceipt) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">View receipt</button>';
+  if (isAdmin() && t.hasReceiverCopy) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receiverReceipt\')">Receiver copy</button>';
+  if (t.hasSignature) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'signature\')">View signature</button>';
+  h += '</div><div class="btns">';
+  if (!closed()) {
+    if (isReceiver() && t.status === 'Pending') h += '<button class="btn" onclick="openSign(\'' + t.id + '\')">Confirm &amp; sign</button>';
+    if (isAdmin() && t.status === 'Pending') h += '<button class="btn ghost" onclick="openEdit(\'' + t.id + '\')">Edit</button><button class="btn danger" onclick="delTxn(\'' + t.id + '\')">Delete</button>';
+    if (isOwner() && t.status === 'Confirmed') h += '<button class="btn danger" onclick="unlockTxn(\'' + t.id + '\')">Unlock (owner)</button>';
+  }
+  h += '</div><div id="viewer" class="viewer" style="margin-top:14px"></div>';
+  openModal(h);
+}
+
+function viewFile(id, kind){
+  run('apiGetFile', TOKEN, id, kind).then(function(f){
+    var v = $('viewer'); if (!v) return;
+    var bytes = atob(f.base64), arr = new Uint8Array(bytes.length);
+    for (var i=0;i<bytes.length;i++) arr[i] = bytes.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([arr], {type: f.mime}));
+    if (/^image\//.test(f.mime)) v.innerHTML = '<img src="' + url + '" alt="' + esc(f.name) + '">';
+    else v.innerHTML = '<a class="btn block" href="' + url + '" target="_blank" download="' + esc(f.name) + '">Open ' + esc(f.name) + '</a>';
+  }, function(){});
+}
+
+function delTxn(id){
+  if (!confirm('Delete payment ' + id + '? This cannot be undone.')) return;
+  run('apiDeleteTxn', TOKEN, id).then(function(d){ S.data = d; closeModal(); render(); toast('Payment deleted'); }, function(){});
+}
+function unlockTxn(id){
+  var reason = prompt('Why are you unlocking ' + id + '? The receiver will need to confirm and sign again. The reason is saved in the audit log.');
+  if (reason === null) return;
+  run('apiUnlockTxn', TOKEN, id, reason).then(function(d){ S.data = d; closeModal(); render(); toast(id + ' unlocked'); }, function(){});
+}
+function sendReport(){
+  if (!confirm('Send the monthly report to everyone now?')) return;
+  run('apiSendReportNow', TOKEN).then(function(){ toast('Report sent'); }, function(){});
+}
+
+// ---------- add / edit form ----------
+function renderForm(t){
+  var d = S.data, people = d.people, me = d.user.name;
+  var sentBy = t ? t.sentBy : (people.indexOf(me) > -1 ? me : people[0]);
+  function opt(v, sel){ return '<option' + (v===sel?' selected':'') + '>' + esc(v) + '</option>'; }
+  var room = d.summary.remaining - d.summary.pending + (t ? t.amount : 0);
+  var h = '<form id="txForm" class="' + (t ? '' : 'card') + '" style="' + (t ? '' : 'padding:16px') + '" onsubmit="return false">';
+  h += '<div class="grid2"><div class="f"><label class="l">Date sent</label><input type="date" name="dateSent" required value="' + (t ? t.dateSentISO : today()) + '"></div>' +
+       '<div class="f"><label class="l">Amount received (USD)</label><input type="number" name="amount" step="0.01" min="0.01" inputmode="decimal" required value="' + (t ? t.amount : '') + '" placeholder="100.00"></div></div>';
+  h += '<div class="hint" style="margin:-8px 0 14px">Enter the USD amount they will receive after fees. Max now: ' + usd(room) + '.</div>';
+  h += '<div class="f"><label class="l">Sent by</label><select name="sentBy">' + people.map(function(p){ return opt(p, sentBy); }).join('') + opt('Joint', sentBy) + '</select>' +
+       '<div id="splitBox" class="split" style="display:none"><div class="hint" style="margin:0 0 8px">Split the amount between people (must add up to the total).</div>' +
+       people.map(function(p){ return '<div class="f" style="margin-bottom:8px"><label class="l">' + esc(p) + ' (USD)</label><input type="number" step="0.01" min="0" data-split="' + esc(p) + '" value="' + (t && t.split && t.split[p] ? t.split[p] : '') + '"></div>'; }).join('') + '</div></div>';
+  h += '<div class="grid2"><div class="f"><label class="l">Method</label><select name="method"><option value="">Select</option>' + d.methods.map(function(m){ return opt(m, t ? t.method : ''); }).join('') + '</select></div>' +
+       '<div class="f"><label class="l">Transfer ref # (optional)</label><input type="text" name="reference" value="' + esc(t ? t.reference : '') + '"></div></div>';
+  h += '<div class="grid2"><div class="f"><label class="l">Local amount paid (optional)</label><input type="number" step="0.01" min="0" name="localAmount" inputmode="decimal" value="' + esc(t ? t.localAmount : '') + '" placeholder="e.g. 370"></div>' +
+       '<div class="f"><label class="l">Currency</label><select name="localCurrency">' + d.currencies.map(function(c){ return opt(c, t ? t.localCurrency : ''); }).join('') + '</select></div></div>';
+  h += '<div class="f"><label class="l">Receipt' + (t ? ' (leave empty to keep current)' : '') + '</label><input type="file" name="receipt" accept="image/*,application/pdf"' + (t ? '' : ' required') + '><div class="hint">Photo or PDF. Admins always see this full receipt.</div></div>';
+  h += '<div class="f"><label class="l">Receiver copy (optional)</label><input type="file" name="receiverReceipt" accept="image/*,application/pdf"><div class="hint">Wise/Remitly/bank receipts show the sender\'s name and currency. If you don\'t want the receiver to see that, upload a cropped copy here and the receiver will see this one instead.</div></div>';
+  h += '<div class="f"><label class="l">Notes (admins only, optional)</label><input type="text" name="notes" value="' + esc(t ? t.notes : '') + '"></div>';
+  h += '<button class="btn block" id="txSubmit">' + (t ? 'Save changes' : 'Add payment &amp; notify receiver') + '</button></form>';
+  return h;
+}
+
+function bindForm(t){
+  var f = $('txForm');
+  var sel = f.elements.sentBy, box = $('splitBox');
+  function sync(){ box.style.display = sel.value === 'Joint' ? 'block' : 'none'; }
+  sel.addEventListener('change', sync); sync();
+  f.addEventListener('input', function(){ S.dirty = true; });
+  f.addEventListener('change', function(){ S.dirty = true; });
+  $('txSubmit').addEventListener('click', function(){ submitForm(t); });
+}
+
+function submitForm(t){
+  var f = $('txForm');
+  var p = {
+    dateSent: f.elements.dateSent.value, amount: f.elements.amount.value, sentBy: f.elements.sentBy.value,
+    method: f.elements.method.value, reference: f.elements.reference.value.trim(),
+    localAmount: f.elements.localAmount.value, localCurrency: f.elements.localAmount.value ? f.elements.localCurrency.value : '',
+    notes: f.elements.notes.value.trim(), split: {}
+  };
+  if (!p.dateSent) return toast('Please select the date sent.', true);
+  if (!(Number(p.amount) > 0)) return toast('Please enter the USD amount.', true);
+  if (p.sentBy === 'Joint') {
+    var sum = 0;
+    Array.prototype.forEach.call(f.querySelectorAll('[data-split]'), function(i){ var v = Number(i.value)||0; if (v>0){ p.split[i.getAttribute('data-split')] = v; sum += v; } });
+    if (Math.abs(sum - Number(p.amount)) > 0.01) return toast('Joint split must add up to ' + usd(p.amount) + ' (now ' + usd(sum) + ').', true);
+  }
+  var rf = f.elements.receipt.files[0], cf = f.elements.receiverReceipt.files[0];
+  if (!t && !rf) return toast('Please attach the receipt.', true);
+  busy(true);
+  Promise.all([rf ? readFile(rf) : null, cf ? readFile(cf) : null]).then(function(files){
+    busy(false);
+    if (files[0]) p.receipt = files[0];
+    if (files[1]) p.receiverReceipt = files[1];
+    return t ? run('apiUpdateTxn', TOKEN, t.id, p) : run('apiAddTxn', TOKEN, p);
+  }).then(function(d){
+    S.data = d;
+    if (t) { closeModal(); toast('Changes saved'); } else { S.tab = 'payments'; toast('Payment added. Receiver notified by email.'); }
+    render();
+  }).catch(function(e){ busy(false); if (e && e.message && /file/i.test(e.message)) toast(e.message, true); });
+}
+
+function openEdit(id){
+  var t = findTxn(id);
+  openModal(modalHead('Edit ' + id) + renderForm(t), function(){ bindForm(t); });
+}
+
+// Reads a file as base64; shrinks large photos so uploads are quick on mobile.
+function readFile(file){
+  return new Promise(function(res, rej){
+    if (file.size > 20*1024*1024) return rej(new Error('File is too large (max 20 MB).'));
+    var fr = new FileReader();
+    fr.onerror = function(){ rej(new Error('Could not read the file.')); };
+    fr.onload = function(){
+      var dataUrl = fr.result;
+      var done = function(url, mime, name){ res({ name: name, mime: mime, base64: url.split(',')[1] }); };
+      if (/^image\//.test(file.type) && file.size > 900*1024) {
+        var img = new Image();
+        img.onload = function(){
+          var max = 1800, w = img.width, h = img.height, k = Math.min(1, max / Math.max(w, h));
+          var c = document.createElement('canvas'); c.width = Math.round(w*k); c.height = Math.round(h*k);
+          var ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+          done(c.toDataURL('image/jpeg', 0.85), 'image/jpeg', file.name.replace(/\.[^.]+$/, '') + '.jpg');
+        };
+        img.onerror = function(){ done(dataUrl, file.type || 'application/octet-stream', file.name); };
+        img.src = dataUrl;
+      } else {
+        if (file.size > 12*1024*1024) return rej(new Error('File is too large (max 12 MB for PDFs).'));
+        done(dataUrl, file.type || 'application/octet-stream', file.name);
+      }
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+// ---------- signature pad ----------
+function SigPad(canvas){
+  var ctx = canvas.getContext('2d'), drawing = false, ink = false, last = null;
+  function reset(){
+    var r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,r.width,r.height);
+    ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0b1b2b';
+    ink = false;
+  }
+  function pos(e){ var r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  canvas.addEventListener('pointerdown', function(e){ e.preventDefault(); drawing = true; last = pos(e); try{ canvas.setPointerCapture(e.pointerId); }catch(_){} });
+  canvas.addEventListener('pointermove', function(e){ if (!drawing) return; e.preventDefault(); var p = pos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; ink = true; });
+  ['pointerup','pointercancel'].forEach(function(ev){ canvas.addEventListener(ev, function(){ drawing = false; }); });
+  reset();
+  return { clear: reset, hasInk: function(){ return ink; }, data: function(){ return canvas.toDataURL('image/png'); } };
+}
+
+// ---------- receiver: confirm & sign ----------
+var PAD = null;
+function openSign(id){
+  var t = findTxn(id); if (!t) return;
+  var h = modalHead('Confirm payment ' + t.id) +
+    '<table class="kv"><tr><td>Amount</td><td><b>' + usd(t.amount) + '</b></td></tr><tr><td>Date sent</td><td>' + esc(t.dateSent) + '</td></tr></table>' +
+    (t.hasReceipt ? '<div class="btns"><button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">View receipt</button></div><div id="viewer" class="viewer" style="margin-top:12px"></div>' : '') +
+    '<div class="f" style="margin-top:14px"><label class="check"><input type="checkbox" id="sgOk"><span>I confirm that <b>' + usd(t.amount) + '</b> has been received in my account.</span></label></div>' +
+    '<div class="f"><label class="l">Your full name</label><input type="text" id="sgName" autocomplete="name" value="' + esc(localName()) + '"></div>' +
+    '<div class="f"><label class="l">Signature</label><canvas class="sig" id="sgPad"></canvas><div class="hint">Sign with your finger. <a href="#" onclick="PAD.clear();return false">Clear</a></div></div>' +
+    '<button class="btn block" id="sgBtn">Confirm &amp; sign</button><div class="hint" style="margin-top:8px">Once signed, this payment is locked and the remaining balance is updated.</div>';
+  openModal(h, function(){
+    PAD = SigPad($('sgPad'));
+    $('sgBtn').addEventListener('click', function(){
+      if (!$('sgOk').checked) return toast('Please tick the confirmation box.', true);
+      var name = $('sgName').value.trim(); if (name.length < 3) return toast('Please write your full name.', true);
+      if (!PAD.hasInk()) return toast('Please sign in the box.', true);
+      saveName(name);
+      run('apiConfirmTxn', TOKEN, t.id, { received: true, signerName: name, signature: PAD.data() }).then(function(d){ S.data = d; closeModal(); render(); toast('Thank you, payment confirmed.'); }, function(){});
+    });
+  });
+}
+function localName(){ try { return localStorage.getItem('lt_name') || ''; } catch(e){ return ''; } }
+function saveName(n){ try { localStorage.setItem('lt_name', n); } catch(e){} }
+
+// ---------- receiver: final settlement ----------
+function openFinal(){
+  var tpl = S.data.settlement.declarationTemplate;
+  var h = modalHead('Final settlement') +
+    '<p style="font-size:14px;margin-top:0">All payments totalling <b>' + usd(S.data.summary.total) + '</b> have been confirmed by you. Please read the declaration, write a statement in your own words, and sign.</p>' +
+    '<div class="f"><label class="l">Your full name</label><input type="text" id="fnName" value="' + esc(localName()) + '"></div>' +
+    '<div class="f"><label class="l">Declaration</label><div class="decl" id="fnDecl"></div></div>' +
+    '<div class="f"><label class="check"><input type="checkbox" id="fnOk"><span>I have read and accept the declaration above.</span></label></div>' +
+    '<div class="f"><label class="l">Your statement, in your own words</label><textarea id="fnText" placeholder="For example: I confirm that we have received the full USD 50,000 and nothing remains owed by the late ... We are fully satisfied."></textarea><div class="hint">This is saved exactly as you write it in the final certificate.</div></div>' +
+    '<div class="f"><label class="l">Signature</label><canvas class="sig" id="fnPad"></canvas><div class="hint">Sign with your finger. <a href="#" onclick="PAD.clear();return false">Clear</a></div></div>' +
+    '<button class="btn block" id="fnBtn">Sign &amp; close account</button><div class="hint" style="margin-top:8px">This is final. A signed certificate will be emailed to everyone.</div>';
+  openModal(h, function(){
+    PAD = SigPad($('fnPad'));
+    function upd(){ $('fnDecl').textContent = tpl.replace('{NAME}', $('fnName').value.trim() || '[your full name]'); }
+    $('fnName').addEventListener('input', upd); upd();
+    $('fnBtn').addEventListener('click', function(){
+      var name = $('fnName').value.trim(), text = $('fnText').value.trim();
+      if (name.length < 3) return toast('Please write your full name.', true);
+      if (!$('fnOk').checked) return toast('Please accept the declaration.', true);
+      if (text.length < 40) return toast('Please write your statement (at least a couple of sentences).', true);
+      if (!PAD.hasInk()) return toast('Please sign in the box.', true);
+      if (!confirm('Sign the final settlement and close the account? This cannot be undone.')) return;
+      saveName(name);
+      run('apiFinalSettle', TOKEN, { signerName: name, statement: text, accepted: true, signature: PAD.data() }).then(function(d){ S.data = d; closeModal(); render(); toast('Final settlement signed. Thank you.'); }, function(){});
+    });
+  });
+}
+
+// ---------- home screen help ----------
+function openHomeHelp(){
+  var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var iphone = '<div class="card" style="padding:14px 16px;margin-bottom:12px"><b>iPhone</b><ol style="padding-left:20px;margin:10px 0 0;font-size:14px">' +
+    '<li>This only works in <b>Safari</b>. If you are in the Gmail or Outlook app, tap the <b>Safari</b> / compass icon or <b>···</b> and choose <b>Open in Safari</b>.</li>' +
+    '<li>Tap the <b>Share</b> button at the bottom: the square with an arrow pointing up.</li>' +
+    '<li>Scroll down and tap <b>Add to Home Screen</b>.</li>' +
+    '<li>Tap <b>Add</b> at the top right.</li></ol></div>';
+  var android = '<div class="card" style="padding:14px 16px;margin-bottom:12px"><b>Android</b><ol style="padding-left:20px;margin:10px 0 0;font-size:14px">' +
+    '<li>Open this page in <b>Chrome</b>. If you are in the Gmail app, tap <b>⋮</b> and choose <b>Open in Chrome</b>.</li>' +
+    '<li>Tap <b>⋮</b> (three dots) at the top right.</li>' +
+    '<li>Tap <b>Add to Home screen</b> (or <b>Install app</b>).</li>' +
+    '<li>Tap <b>Add</b>.</li></ol></div>';
+  openModal(modalHead('Add to home screen') + '<p style="font-size:14px;margin-top:0">Do this once. After that, Loan Tracker opens like an app with one tap.</p>' + (ios ? iphone + android : android + iphone));
+}
+
+// ---------- live updates ----------
+var POLL_MS = 20000, polling = false, lastTick = Date.now();
+function fmtWhen(d){
+  if (!d) return '';
+  var now = new Date(), t = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  var y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return 'Today, ' + t;
+  if (d.toDateString() === y.toDateString()) return 'Yesterday, ' + t;
+  return d.toLocaleDateString([], {day:'2-digit', month:'short', year:'numeric'}) + ', ' + t;
+}
+function paintStamp(){
+  var el = $('stamp'); if (!el) return;
+  var age = S.checkedAt ? Date.now() - S.checkedAt.getTime() : 0;
+  var old = age > 2 * 60 * 1000;
+  el.className = 'stamp' + (old ? ' old' : '');
+  el.textContent = (old ? 'Not updated since ' : 'Up to date · last checked ') + fmtWhen(S.checkedAt) + (old ? ' · tap ↻ to refresh' : '');
+}
+function modalOpen(){ return $('overlay').classList.contains('show'); }
+function busyUser(){ return modalOpen() || (S.tab === 'add' && S.dirty) || $('busy').classList.contains('show'); }
+function showStale(){
+  var a = $('stale');
+  if (HOSTED) a.href = location.href;
+  else if (S.data && S.data.appUrl) a.href = S.data.appUrl + '?t=' + encodeURIComponent(TOKEN);
+  a.classList.add('show');
+}
+function reload(manual){
+  var b = $('refBtn'); b.classList.add('spin');
+  return call('apiInit', TOKEN).then(function(d){
+    b.classList.remove('spin');
+    if (manual && modalOpen()) closeModal();
+    S.data = d; render();
+    if (manual) toast('Up to date');
+  }, function(e){
+    b.classList.remove('spin'); S.fails = (S.fails || 0) + 1;
+    if (S.fails >= 2 || manual) showStale();
+    if (manual) toast('Could not refresh. Tap the orange bar to reload the page.', true);
+    throw e;
+  });
+}
+function checkForUpdates(force){
+  if (polling || document.hidden || !S.data) return;
+  polling = true;
+  var p = force ? reload(false) : call('apiVersion', TOKEN).then(function(v){
+    if (String(v) === String(S.data.version)) { S.checkedAt = new Date(); S.fails = 0; paintStamp(); return; }
+    if (busyUser()) { $('upd').classList.add('show'); S.checkedAt = new Date(); paintStamp(); }
+    else return reload(false).then(function(){ toast('Updated with latest changes'); });
+  });
+  p.then(function(){ polling = false; }, function(){
+    polling = false; S.fails = (S.fails || 0) + 1;
+    if (S.fails >= 2) showStale();
+    paintStamp();
+  });
+}
+// Timer: normal check every 20s. If the laptop/phone was asleep (big gap), do a full refresh.
+setInterval(function(){
+  var now = Date.now(), gap = now - lastTick; lastTick = now;
+  if (gap > 5 * 60 * 1000 && !busyUser()) checkForUpdates(true); else checkForUpdates(false);
+  paintStamp();
+}, POLL_MS);
+function onWake(){
+  if (document.hidden || !S.checkedAt) return;
+  var away = Date.now() - S.checkedAt.getTime();
+  checkForUpdates(away > 5 * 60 * 1000 && !busyUser());
+}
+document.addEventListener('visibilitychange', onWake);
+window.addEventListener('focus', onWake);
+window.addEventListener('online', function(){ checkForUpdates(true); });
+
+// ---------- start ----------
+if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(API_URL)) {
+  $('app').innerHTML = '<div class="balance"><div class="lbl">Setup needed</div><p>Open index.html on GitHub and paste the Apps Script /exec URL into API_URL.</p></div>';
+  throw new Error('API_URL not set');
+}
+if (!TOKEN) {
+  $('app').innerHTML = '<div class="balance"><div class="lbl">Welcome</div><p>Please open Loan Tracker using the personal link from your email (the <b>Open Loan Tracker</b> button).</p></div>';
+  throw new Error('No token');
+}
+call('apiInit', TOKEN).then(function(d){ S.data = d; render(); }, function(e){
+  $('app').innerHTML = '<div class="balance"><div class="lbl">Could not load</div><p>' + esc(e.message) + '</p></div>';
+});
+</script>
+</body>
+</html>
