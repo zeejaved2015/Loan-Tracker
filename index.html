@@ -142,11 +142,10 @@ textarea{min-height:110px;resize:vertical}
 <div class="busy" id="busy"><div class="spinner"></div></div>
 <div class="toast" id="toast"></div>
 
+<script src="config.js"></script>
 <script>
-// =====================================================================
-//  PASTE your Apps Script Web App URL (ends with /exec) between the quotes:
-var API_URL = 'https://script.google.com/macros/s/AKfycbzhgTZV2Z-UPsdGjbnObmA9FCgx06oWH0wf3YlYCm5OeQGaEUV1B0a7Q8mLjFvMiQrXkQ/exec';
-// =====================================================================
+// The Apps Script /exec URL lives in config.js (so this file can be replaced on updates without editing).
+var API_URL = String(window.LOAN_TRACKER_API_URL || '').trim();
 var TOKEN = (function(){
   var t = '';
   try { t = new URLSearchParams(location.search).get('t') || ''; } catch(e) {}
@@ -603,12 +602,16 @@ function openHomeHelp(){
     '<li>This only works in <b>Safari</b>. If you are in the Gmail or Outlook app, tap the <b>Safari</b> / compass icon or <b>···</b> and choose <b>Open in Safari</b>.</li>' +
     '<li>Tap the <b>Share</b> button at the bottom: the square with an arrow pointing up.</li>' +
     '<li>Scroll down and tap <b>Add to Home Screen</b>.</li>' +
-    '<li>Tap <b>Add</b> at the top right.</li></ol></div>';
+    '<li>Tap <b>Add</b> at the top right.</li>' +
+    '<li><b>Can\'t see the icon?</b> It is usually on the <b>last page</b> of your home screen. Or swipe <b>down</b> on the home screen and type <b>Loan Tracker</b>.</li>' +
+    '<li><b>Move it to your first page:</b> press and hold the icon until icons wiggle, drag it to the left edge until you reach the first page, let go, tap <b>Done</b>.</li></ol></div>';
   var android = '<div class="card" style="padding:14px 16px;margin-bottom:12px"><b>Android</b><ol style="padding-left:20px;margin:10px 0 0;font-size:14px">' +
     '<li>Open this page in <b>Chrome</b>. If you are in the Gmail app, tap <b>⋮</b> and choose <b>Open in Chrome</b>.</li>' +
     '<li>Tap <b>⋮</b> (three dots) at the top right.</li>' +
     '<li>Tap <b>Add to Home screen</b> (or <b>Install app</b>).</li>' +
-    '<li>Tap <b>Add</b>.</li></ol></div>';
+    '<li>Tap <b>Add</b> (or <b>Add automatically</b> if asked).</li>' +
+    '<li><b>Can\'t see the icon?</b> Look on the <b>last page</b> of your home screen, or swipe <b>up</b> to open all apps and search <b>Loan Tracker</b>.</li>' +
+    '<li><b>Move it to your first page:</b> press and hold the icon, drag it to your first page, let go.</li></ol></div>';
   openModal(modalHead('Add to home screen') + '<p style="font-size:14px;margin-top:0">Do this once. After that, Loan Tracker opens like an app with one tap.</p>' + (ios ? iphone + android : android + iphone));
 }
 
@@ -682,7 +685,7 @@ window.addEventListener('online', function(){ checkForUpdates(true); });
 
 // ---------- start ----------
 if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(API_URL)) {
-  $('app').innerHTML = '<div class="balance"><div class="lbl">Setup needed</div><p>Open index.html on GitHub and paste the Apps Script /exec URL into API_URL.</p></div>';
+  $('app').innerHTML = '<div class="balance"><div class="lbl">Setup needed</div><p>Open config.js on GitHub and paste the Apps Script /exec URL between the quotes.</p></div>';
   throw new Error('API_URL not set');
 }
 if (!TOKEN) {
