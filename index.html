@@ -6,7 +6,7 @@
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="app-build" content="20260930183544">
+<meta name="app-build" content="20260930200640">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -170,7 +170,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
-var APP_BUILD = '20260930183544';   // set automatically in the GitHub copy
+var APP_BUILD = '20260930200640';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
@@ -287,7 +287,7 @@ function renderPayments(){
   var list = S.data.transactions;
   if (!list.length) return '<div class="card empty">No payments yet.</div>';
   return '<div class="card list">' + list.map(function(t){
-    var sub = esc(t.dateSent) + (isAdmin() ? ' · ' + esc(t.sentByLabel) : '') + ' · ' + esc(t.id);
+    var sub = esc(t.dateSent) + (t.sentByLabel ? ' · ' + (isAdmin() ? '' : 'from ') + esc(t.sentByLabel) : '') + ' · ' + esc(t.id);
     if (t.status === 'Confirmed' && t.signerName) sub += '<br><span style="color:var(--ok);font-weight:600">✓ Confirmed by ' + esc(t.signerName) + '</span>';
     return '<div class="item" onclick="openDetail(\'' + t.id + '\')"><div class="main"><div class="amt">' + usd(t.amount) + '</div><div class="sub">' + sub + '</div></div>' + pill(t.status) + '</div>';
   }).join('') + '</div>';
@@ -433,9 +433,8 @@ function doReset(){
 // ---------- detail ----------
 function openDetail(id){
   var t = findTxn(id); if (!t) return;
-  var rows = [['Reference', esc(t.id)], ['Amount', '<b>' + usd(t.amount) + '</b>'], ['Date sent', esc(t.dateSent)], ['Status', pill(t.status)]];
+  var rows = [['Reference', esc(t.id)], ['Amount', '<b>' + usd(t.amount) + '</b>'], ['Sent by', '<b>' + esc(t.sentByLabel || '') + '</b>'], ['Date sent', esc(t.dateSent)], ['Status', pill(t.status)]];
   if (isAdmin()) {
-    rows.push(['Sent by', esc(t.sentByLabel)]);
     if (t.method) rows.push(['Method', esc(t.method)]);
     if (t.reference) rows.push(['Transfer ref #', esc(t.reference)]);
     if (t.localAmount) rows.push(['Local amount', esc(t.localAmount + ' ' + t.localCurrency)]);
@@ -622,7 +621,8 @@ var PAD = null;
 function openSign(id){
   var t = findTxn(id); if (!t) return;
   var h = modalHead('Confirm payment ' + t.id) +
-    '<table class="kv"><tr><td>Amount</td><td><b>' + usd(t.amount) + '</b></td></tr><tr><td>Date sent</td><td>' + esc(t.dateSent) + '</td></tr></table>' +
+    '<table class="kv"><tr><td>Amount</td><td><b>' + usd(t.amount) + '</b></td></tr><tr><td>Sent by</td><td><b>' + esc(t.sentByLabel || '') + '</b></td></tr><tr><td>Date sent</td><td>' + esc(t.dateSent) + '</td></tr></table>' +
+    '<p class="hint" style="margin:8px 0 0">Tip: check your bank app for a payment of this amount on or after this date. The sender name in the bank may appear slightly differently, for example with the transfer company\'s name.</p>' +
     (t.hasReceipt ? '<div class="btns"><button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">View receipt</button></div><div id="viewer" class="viewer" style="margin-top:12px"></div>' : '') +
     '<div class="f" style="margin-top:14px"><label class="check"><input type="checkbox" id="sgOk"><span>I confirm that <b>' + usd(t.amount) + '</b> has been received in my account.</span></label></div>' +
     '<div class="f"><label class="l">Your full name</label><input type="text" id="sgName" autocomplete="name" value="' + esc(localName()) + '"></div>' +
