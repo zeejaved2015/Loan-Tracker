@@ -63,6 +63,13 @@ header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
 .pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}
 .pill.Pending{background:var(--warn-soft);color:var(--warn)}
 .pill.Confirmed{background:var(--ok-soft);color:var(--ok)}
+.pill.Sent{background:var(--line);color:var(--ink)}
+.notice.info{background:var(--accent-soft);border-color:rgba(15,118,110,.25)}
+.act{font-size:12px;color:var(--muted);margin-top:2px}
+.act b{color:var(--ink);font-weight:600}
+.intransit{font-size:13px;color:var(--muted);margin-top:10px}
+.radio{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);margin-bottom:8px;cursor:pointer}
+.radio input{margin-top:3px;width:18px;height:18px;flex:none}
 .empty{padding:28px 16px;text-align:center;color:var(--muted)}
 .section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 4px 8px}
 form .f{margin-bottom:14px}
@@ -184,6 +191,14 @@ function run(fn){
   busy(true);
   return call.apply(null, args).then(function(r){ busy(false); return r; }, function(e){ busy(false); toast(e.message.replace(/^Exception:\s*/,''), true); throw e; });
 }
+var STATUS_LABEL = { Sent: 'Not delivered yet', Pending: 'Awaiting confirmation', Confirmed: 'Confirmed' };
+function pill(st){ return '<span class="pill ' + esc(st) + '">' + esc(STATUS_LABEL[st] || st) + '</span>'; }
+function clientInfo(){
+  var standalone = false;
+  try { standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; } catch(e) {}
+  var ua = navigator.userAgent || '', dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android phone' : /Windows/.test(ua) ? 'Windows PC' : /Macintosh/.test(ua) ? 'Mac' : 'Other device';
+  return { standalone: !!standalone, device: dev + (standalone ? ' (home screen app)' : ' (browser)') };
+}
 function findTxn(id){ return S.data.transactions.filter(function(t){ return t.id === id; })[0]; }
 
 // ---------- modal ----------
@@ -203,12 +218,18 @@ function render(){
        '<div class="bar"><i style="width:' + s.progress + '%"></i></div>' +
        '<div class="stats"><div class="stat"><b>' + usd(s.confirmed) + '</b><span>Paid &amp; confirmed</span></div>' +
        '<div class="stat"><b>' + usd(s.pending) + '</b><span>Awaiting confirmation</span></div>' +
-       '<div class="stat"><b>' + s.progress + '%</b><span>of ' + usd(s.total) + '</span></div></div></div>';
+       '<div class="stat"><b>' + s.progress + '%</b><span>of ' + usd(s.total) + '</span></div></div>' +
+       (isAdmin() && s.inTransit > 0 ? '<div class="intransit">Sent, not delivered yet: <b>' + usd(s.inTransit) + '</b> (receiver cannot see this yet)</div>' : '') + '</div>';
 
   if (closed()) {
     h += '<div class="notice ok"><h3>Account closed, settled in full</h3><p>Final settlement signed by <b>' + esc(d.settlement.signerName) + '</b> on ' + esc(d.settlement.closedAt) + '. The signed certificate was emailed to everyone.</p></div>';
   }
   var pending = d.transactions.filter(function(t){ return t.status === 'Pending'; });
+  var undelivered = d.transactions.filter(function(t){ return t.status === 'Sent'; });
+  if (isAdmin() && undelivered.length && !closed()) {
+    h += '<div class="notice info"><h3>' + undelivered.length + ' payment' + (undelivered.length>1?'s':'') + ' not marked as delivered</h3><p>When Wise / Remitly / the bank shows the money as delivered, tap below. The receiver is emailed at that moment.</p>' +
+      undelivered.map(function(t){ return '<div class="btns" style="margin-top:6px"><button class="btn block" onclick="markDelivered(\'' + t.id + '\')">Mark delivered: ' + usd(t.amount) + ' · ' + esc(t.sentByLabel) + ' · ' + esc(t.dateSent) + '</button></div>'; }).join('') + '</div>';
+  }
   if (isReceiver() && pending.length && !closed()) {
     h += '<div class="notice warn"><h3>' + pending.length + ' payment' + (pending.length>1?'s':'') + ' waiting for your confirmation</h3><p>Please confirm only after the money has reached your account.</p>' +
       pending.map(function(t){ return '<div class="btns" style="margin-top:6px"><button class="btn block" onclick="openSign(\'' + t.id + '\')">Review &amp; confirm ' + usd(t.amount) + ' (' + esc(t.dateSent) + ')</button></div>'; }).join('') + '</div>';
@@ -245,9 +266,18 @@ function renderPayments(){
   return '<div class="card list">' + list.map(function(t){
     var sub = esc(t.dateSent) + (isAdmin() ? ' · ' + esc(t.sentByLabel) : '') + ' · ' + esc(t.id);
     if (t.status === 'Confirmed' && t.signerName) sub += '<br><span style="color:var(--ok);font-weight:600">✓ Confirmed by ' + esc(t.signerName) + '</span>';
-    return '<div class="item" onclick="openDetail(\'' + t.id + '\')"><div class="main"><div class="amt">' + usd(t.amount) + '</div><div class="sub">' + sub + '</div></div><span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span></div>';
+    return '<div class="item" onclick="openDetail(\'' + t.id + '\')"><div class="main"><div class="amt">' + usd(t.amount) + '</div><div class="sub">' + sub + '</div></div>' + pill(t.status) + '</div>';
   }).join('') + '</div>';
 }
+
+function activityLine(a){
+  if (!a) return '';
+  if (!a.firstOpenedAt) return '<div class="act">⏳ Has not opened the app yet' + (a.linkSentAt ? ' · link sent ' + esc(a.linkSentAt) : '') + '</div>';
+  return '<div class="act">✅ First opened <b>' + esc(a.firstOpenedAt) + '</b></div>' +
+    '<div class="act">👁 Last seen <b>' + esc(a.lastSeenAt || a.firstOpenedAt) + '</b>' + (a.device ? ' · ' + esc(a.device) : '') + '</div>' +
+    '<div class="act">' + (a.installedAt ? '📱 On home screen since <b>' + esc(a.installedAt) + '</b>' : '📱 Not opened from a home screen icon yet') + '</div>';
+}
+function activityFor(name, role){ return (S.data.activity || []).filter(function(a){ return a.name === name && a.role === role; })[0]; }
 
 function renderSummary(){
   var d = S.data, h = '';
@@ -258,6 +288,11 @@ function renderSummary(){
       h += '<div class="card person"><div class="n">' + esc(n) + '</div><div class="v">' + usd(p.confirmed) + '</div><div class="s">confirmed · ' + usd(p.pending) + ' pending · ' + p.count + ' payment' + (p.count===1?'':'s') + '</div></div>';
     });
     h += '</div>';
+  }
+  if (isAdmin() && (d.activity || []).length) {
+    h += '<div class="section-title">Member activity</div><div class="card">' + d.activity.filter(function(a){ return a.active; }).map(function(a){
+      return '<div class="member" style="cursor:default"><div class="main"><div class="nm">' + esc(a.name) + '</div>' + activityLine(a) + '</div><span class="pill ' + a.role + '">' + ROLE_LABEL[a.role] + '</span></div>';
+    }).join('') + '</div>';
   }
   h += '<div class="section-title">Month by month</div>';
   if (!d.monthly.length) h += '<div class="card empty">Nothing yet.</div>';
@@ -281,7 +316,7 @@ function renderManage(){
     users.filter(function(u){ return u.role === g[0]; }).forEach(function(u){
       var status = !u.active ? '<span class="pill off">Inactive</span>' : '<span class="pill ' + u.role + '">' + ROLE_LABEL[u.role] + '</span>';
       h += '<div class="member" onclick="openMember(\'' + esc(u.email) + '\')"><div class="main"><div class="nm">' + esc(u.name) + '</div><div class="em">' + esc(u.email) + '</div>' +
-           '<div class="em">' + (u.linkSentAt ? 'Link sent ' + esc(u.linkSentAt) : 'Link not sent yet') + '</div></div>' + status + '</div>';
+           activityLine(activityFor(u.name, u.role)) + '</div>' + status + '</div>';
     });
   });
   if (!users.length) h += '<div class="empty">No members.</div>';
@@ -375,7 +410,7 @@ function doReset(){
 // ---------- detail ----------
 function openDetail(id){
   var t = findTxn(id); if (!t) return;
-  var rows = [['Reference', esc(t.id)], ['Amount', '<b>' + usd(t.amount) + '</b>'], ['Date sent', esc(t.dateSent)], ['Status', '<span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span>']];
+  var rows = [['Reference', esc(t.id)], ['Amount', '<b>' + usd(t.amount) + '</b>'], ['Date sent', esc(t.dateSent)], ['Status', pill(t.status)]];
   if (isAdmin()) {
     rows.push(['Sent by', esc(t.sentByLabel)]);
     if (t.method) rows.push(['Method', esc(t.method)]);
@@ -384,6 +419,8 @@ function openDetail(id){
     if (t.notes) rows.push(['Notes', esc(t.notes)]);
     rows.push(['Added', esc(t.addedBy + ', ' + t.createdAt)]);
     rows.push(['Receiver sees', t.hasReceiverCopy ? 'Separate receiver copy' : 'Same receipt (full)']);
+    if (t.deliveredAt) rows.push(['Delivered', esc(t.deliveredAt) + (t.deliveredBy ? ' (marked by ' + esc(t.deliveredBy) + ')' : '')]);
+    if (t.status === 'Sent') rows.push(['Receiver', 'Not told yet. Tap <b>Mark as Delivered</b> once the money arrives.']);
     if (t.status === 'Pending') rows.push(['Reminders sent', String(t.reminderCount || 0)]);
   }
   if (t.status === 'Confirmed') {
@@ -399,7 +436,8 @@ function openDetail(id){
   h += '</div><div class="btns">';
   if (!closed()) {
     if (isReceiver() && t.status === 'Pending') h += '<button class="btn" onclick="openSign(\'' + t.id + '\')">Confirm &amp; sign</button>';
-    if (isAdmin() && t.status === 'Pending') h += '<button class="btn ghost" onclick="openEdit(\'' + t.id + '\')">Edit</button><button class="btn danger" onclick="delTxn(\'' + t.id + '\')">Delete</button>';
+    if (isAdmin() && t.status === 'Sent') h += '<button class="btn" style="flex-basis:100%" onclick="markDelivered(\'' + t.id + '\')">Mark as Delivered &amp; notify receiver</button>';
+    if (isAdmin() && t.status !== 'Confirmed') h += '<button class="btn ghost" onclick="openEdit(\'' + t.id + '\')">Edit</button><button class="btn danger" onclick="delTxn(\'' + t.id + '\')">Delete</button>';
     if (isOwner() && t.status === 'Confirmed') h += '<button class="btn danger" onclick="unlockTxn(\'' + t.id + '\')">Unlock (owner)</button>';
   }
   h += '</div><div id="viewer" class="viewer" style="margin-top:14px"></div>';
@@ -417,6 +455,11 @@ function viewFile(id, kind){
   }, function(){});
 }
 
+function markDelivered(id){
+  var t = findTxn(id); if (!t) return;
+  if (!confirm('Has ' + usd(t.amount) + ' (' + t.id + ') been delivered?\n\nThe receiver will be emailed now and reminded every 24 hours until they confirm.')) return;
+  run('apiMarkDelivered', TOKEN, id).then(function(d){ S.data = d; closeModal(); render(); toast('Marked delivered. Receiver notified.'); }, function(){});
+}
 function delTxn(id){
   if (!confirm('Delete payment ' + id + '? This cannot be undone.')) return;
   run('apiDeleteTxn', TOKEN, id).then(function(d){ S.data = d; closeModal(); render(); toast('Payment deleted'); }, function(){});
@@ -450,8 +493,11 @@ function renderForm(t){
        '<div class="f"><label class="l">Currency</label><select name="localCurrency">' + d.currencies.map(function(c){ return opt(c, t ? t.localCurrency : ''); }).join('') + '</select></div></div>';
   h += '<div class="f"><label class="l">Receipt' + (t ? ' (leave empty to keep current)' : '') + '</label><input type="file" name="receipt" accept="image/*,application/pdf"' + (t ? '' : ' required') + '><div class="hint">Photo or PDF. Admins always see this full receipt.</div></div>';
   h += '<div class="f"><label class="l">Receiver copy (optional)</label><input type="file" name="receiverReceipt" accept="image/*,application/pdf"><div class="hint">Wise/Remitly/bank receipts show the sender\'s name and currency. If you don\'t want the receiver to see that, upload a cropped copy here and the receiver will see this one instead.</div></div>';
+  if (!t) h += '<div class="f"><label class="l">Has the money been delivered?</label>' +
+    '<label class="radio"><input type="radio" name="delivered" value="no" checked><span><b>Not delivered yet</b><br><span class="hint" style="margin:0">Receiver is not told. Tap <b>Mark as Delivered</b> later, when Wise / Remitly / the bank says delivered.</span></span></label>' +
+    '<label class="radio"><input type="radio" name="delivered" value="yes"><span><b>Already delivered</b><br><span class="hint" style="margin:0">Receiver is emailed right away to confirm.</span></span></label></div>';
   h += '<div class="f"><label class="l">Notes (admins only, optional)</label><input type="text" name="notes" value="' + esc(t ? t.notes : '') + '"></div>';
-  h += '<button class="btn block" id="txSubmit">' + (t ? 'Save changes' : 'Add payment &amp; notify receiver') + '</button></form>';
+  h += '<button class="btn block" id="txSubmit">' + (t ? 'Save changes' : 'Add payment') + '</button></form>';
   return h;
 }
 
@@ -471,7 +517,8 @@ function submitForm(t){
     dateSent: f.elements.dateSent.value, amount: f.elements.amount.value, sentBy: f.elements.sentBy.value,
     method: f.elements.method.value, reference: f.elements.reference.value.trim(),
     localAmount: f.elements.localAmount.value, localCurrency: f.elements.localAmount.value ? f.elements.localCurrency.value : '',
-    notes: f.elements.notes.value.trim(), split: {}
+    notes: f.elements.notes.value.trim(), split: {},
+    delivered: !t && !!(f.querySelector('input[name=delivered]:checked') || {}).value && f.querySelector('input[name=delivered]:checked').value === 'yes'
   };
   if (!p.dateSent) return toast('Please select the date sent.', true);
   if (!(Number(p.amount) > 0)) return toast('Please enter the USD amount.', true);
@@ -490,7 +537,7 @@ function submitForm(t){
     return t ? run('apiUpdateTxn', TOKEN, t.id, p) : run('apiAddTxn', TOKEN, p);
   }).then(function(d){
     S.data = d;
-    if (t) { closeModal(); toast('Changes saved'); } else { S.tab = 'payments'; toast('Payment added. Receiver notified by email.'); }
+    if (t) { closeModal(); toast('Changes saved'); } else { S.tab = 'payments'; toast(p.delivered ? 'Payment added. Receiver notified by email.' : 'Payment added. Tap "Mark delivered" when it arrives.'); }
     render();
   }).catch(function(e){ busy(false); if (e && e.message && /file/i.test(e.message)) toast(e.message, true); });
 }
@@ -647,7 +694,7 @@ function showStale(){
 }
 function reload(manual){
   var b = $('refBtn'); b.classList.add('spin');
-  return call('apiInit', TOKEN).then(function(d){
+  return call('apiInit', TOKEN, clientInfo()).then(function(d){
     b.classList.remove('spin');
     if (manual && modalOpen()) closeModal();
     S.data = d; render();
@@ -697,7 +744,7 @@ if (!TOKEN) {
   $('app').innerHTML = '<div class="balance"><div class="lbl">Welcome</div><p>Please open Loan Tracker using the personal link from your email (the <b>Open Loan Tracker</b> button).</p></div>';
   throw new Error('No token');
 }
-call('apiInit', TOKEN).then(function(d){ S.data = d; render(); }, function(e){
+call('apiInit', TOKEN, clientInfo()).then(function(d){ S.data = d; render(); }, function(e){
   $('app').innerHTML = '<div class="balance"><div class="lbl">Could not load</div><p>' + esc(e.message) + '</p></div>';
 });
 </script>
