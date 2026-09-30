@@ -59,7 +59,7 @@ header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
 .list .item:last-child{border-bottom:0}
 .item .main{flex:1;min-width:0}
 .item .amt{font-weight:700;font-variant-numeric:tabular-nums}
-.item .sub{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .sub{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
 .pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}
 .pill.Pending{background:var(--warn-soft);color:var(--warn)}
 .pill.Confirmed{background:var(--ok-soft);color:var(--ok)}
@@ -244,6 +244,7 @@ function renderPayments(){
   if (!list.length) return '<div class="card empty">No payments yet.</div>';
   return '<div class="card list">' + list.map(function(t){
     var sub = esc(t.dateSent) + (isAdmin() ? ' · ' + esc(t.sentByLabel) : '') + ' · ' + esc(t.id);
+    if (t.status === 'Confirmed' && t.signerName) sub += '<br><span style="color:var(--ok);font-weight:600">✓ Confirmed by ' + esc(t.signerName) + '</span>';
     return '<div class="item" onclick="openDetail(\'' + t.id + '\')"><div class="main"><div class="amt">' + usd(t.amount) + '</div><div class="sub">' + sub + '</div></div><span class="pill ' + esc(t.status) + '">' + esc(t.status) + '</span></div>';
   }).join('') + '</div>';
 }
@@ -385,7 +386,11 @@ function openDetail(id){
     rows.push(['Receiver sees', t.hasReceiverCopy ? 'Separate receiver copy' : 'Same receipt (full)']);
     if (t.status === 'Pending') rows.push(['Reminders sent', String(t.reminderCount || 0)]);
   }
-  if (t.status === 'Confirmed') { rows.push(['Confirmed on', esc(t.confirmedAt)]); rows.push(['Signed by', esc(t.signerName)]); }
+  if (t.status === 'Confirmed') {
+    rows.push(['Confirmed by (full name)', '<b>' + esc(t.signerName) + '</b>']);
+    rows.push(['Confirmed on', esc(t.confirmedAt)]);
+    if (t.confirmedBy) rows.push(['Receiver account', esc(t.confirmedBy) + (isAdmin() && t.confirmedByEmail ? '<br><span style="color:var(--muted)">' + esc(t.confirmedByEmail) + '</span>' : '')]);
+  }
   var h = modalHead('Payment ' + t.id) + '<table class="kv">' + rows.map(function(r){ return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
   h += '<div class="btns">';
   if (t.hasReceipt) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">View receipt</button>';
