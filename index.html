@@ -6,7 +6,7 @@
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="app-build" content="20260930181206">
+<meta name="app-build" content="20260930183544">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -131,6 +131,14 @@ textarea{min-height:110px;resize:vertical}
 .pill.off{background:var(--line);color:var(--muted)}
 .danger-zone{border:1px solid rgba(180,35,24,.35);background:var(--danger-soft);border-radius:var(--r);padding:16px}
 .danger-zone h3{margin:0 0 6px;font-size:15px;color:var(--danger)}
+.hsub{margin-top:10px !important;flex-wrap:wrap;gap:6px 10px !important;justify-content:space-between}
+.hstat{display:inline-flex;align-items:center;gap:7px;border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:999px;padding:5px 11px 5px 9px;font-size:12px;font-weight:600;cursor:pointer;max-width:100%}
+.hstat span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.22)}
+.dot.old{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
+.dot.sync{background:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.ver{font-size:11px;color:rgba(255,255,255,.62);white-space:nowrap}
 .topbtn{border:0;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none}
 .topbtn.spin{animation:spin 1s linear infinite}
 .upd{position:fixed;top:0;left:0;right:0;z-index:60;display:none;justify-content:center;padding:10px 16px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14px;cursor:pointer;text-align:center}
@@ -145,7 +153,8 @@ textarea{min-height:110px;resize:vertical}
 <body>
 <div class="upd" id="upd" onclick="reload(true)">New updates available · Tap to refresh</div>
 <a class="upd warn" id="stale" target="_top" href="#">This page was open for a long time · Tap here to reload</a>
-<header class="top"><div class="row"><h1 id="appName">Loan Tracker</h1><div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="topbtn" id="refBtn" onclick="reload(true)" aria-label="Refresh" title="Refresh">↻</button></div></div></header>
+<header class="top"><div class="row"><h1 id="appName">Loan Tracker</h1><div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="topbtn" id="refBtn" onclick="reload(true)" aria-label="Refresh" title="Refresh">↻</button></div></div>
+<div class="row hsub"><button class="hstat" id="hstat" onclick="reload(true)" title="Tap to refresh now"><i class="dot sync" id="sdot"></i><span id="stamp">Connecting…</span></button><span class="ver" id="ver"></span></div></header>
 <div class="wrap" id="app"><div class="balance"><div class="lbl">Loading…</div></div></div>
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <div class="busy" id="busy"><div class="spinner"></div></div>
@@ -161,7 +170,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
-var APP_BUILD = '20260930181206';   // set automatically in the GitHub copy
+var APP_BUILD = '20260930183544';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
@@ -176,18 +185,27 @@ function closed(){ return S.data && S.data.settlement.closed; }
 function today(){ var d = new Date(); return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); }
 function busy(on){ $('busy').classList.toggle('show', !!on); }
 function toast(msg, err){ var t=$('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(function(){ t.style.display='none'; }, err?6000:3000); }
+// A request that hangs (sleep, weak signal) must never block the app: every call gives up after a time limit.
+var CALL_TIMEOUT = { apiVersion: 20000, apiInit: 45000 };
 function call(fn){
   var args = Array.prototype.slice.call(arguments,1);
+  var limit = CALL_TIMEOUT[fn] || 120000, timer = null;
+  var timeout = new Promise(function(_, rej){ timer = setTimeout(function(){ rej(new Error('The server took too long to answer. Please try again.')); }, limit); });
+  var work;
   if (HOSTED) {
-    return fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+    var ctrl = window.AbortController ? new AbortController() : null;
+    setTimeout(function(){ if (ctrl) ctrl.abort(); }, limit);
+    work = fetch(API_URL, { method: 'POST', redirect: 'follow', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
       .then(function(r){ if (!r.ok) throw new Error('Server error (' + r.status + '). Please try again.'); return r.json(); },
             function(){ throw new Error('Could not connect. Check your internet and try again.'); })
       .then(function(j){ if (!j || !j.ok) throw new Error((j && j.error) || 'Something went wrong.'); return j.result; });
+  } else {
+    work = new Promise(function(res, rej){
+      var r = google.script.run.withSuccessHandler(res).withFailureHandler(function(e){ rej(e && e.message ? e : new Error(String(e))); });
+      r[fn].apply(r, args);
+    });
   }
-  return new Promise(function(res, rej){
-    var r = google.script.run.withSuccessHandler(res).withFailureHandler(function(e){ rej(e && e.message ? e : new Error(String(e))); });
-    r[fn].apply(r, args);
-  });
+  return Promise.race([work, timeout]).then(function(v){ clearTimeout(timer); return v; }, function(e){ clearTimeout(timer); throw e; });
 }
 function run(fn){
   var args = Array.prototype.slice.call(arguments);
@@ -255,10 +273,9 @@ function render(){
   else if (S.tab === 'add') h += renderForm(null);
   else if (S.tab === 'manage') h += renderManage();
   else h += renderSummary();
-  h += '<div class="stamp" id="stamp"></div>';
   var vb = APP_BUILD || d.clientBuild || '';
-  if (vb && vb !== '0') h += '<div class="stamp" style="margin-top:4px;opacity:.8">Version ' + esc(fmtBuild(vb)) + (HOSTED ? '' : ' · Google') + '</div>';
-  h += '<div class="btns" style="margin-top:14px"><button class="btn ghost block" onclick="openHomeHelp()">📱 Add Loan Tracker to your phone\'s home screen</button></div>';
+  $('ver').textContent = (vb && vb !== '0') ? 'Version ' + fmtBuild(vb) + (HOSTED ? '' : ' · Google') : '';
+  h += '<div class="btns" style="margin-top:22px"><button class="btn ghost block" onclick="openHomeHelp()">📱 Add Loan Tracker to your phone\'s home screen</button></div>';
   $('app').innerHTML = h;
   if (S.fromSnap) { S.checkedAt = S.snapAt; } else { S.checkedAt = new Date(); S.fails = 0; $('stale').classList.remove('show'); saveSnap(); }
   paintStamp();
@@ -699,7 +716,7 @@ function goLatest(build){
 }
 
 // ---------- live updates ----------
-var POLL_MS = 20000, polling = false, lastTick = Date.now();
+var POLL_MS = 20000, polling = false, pollStart = 0, lastTick = Date.now();
 function fmtTs(ms){ return ms ? fmtWhen(new Date(Number(ms))) : ''; }
 function fmtWhen(d){
   if (!d) return '';
@@ -717,12 +734,12 @@ function fmtBuild(b){
   return p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear() + ', ' + d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
 }
 function paintStamp(){
-  var el = $('stamp'); if (!el) return;
-  if (S.fromSnap) { el.className = 'stamp'; el.textContent = 'Showing saved data from ' + fmtWhen(S.snapAt) + ' · updating…'; return; }
-  var age = S.checkedAt ? Date.now() - S.checkedAt.getTime() : 0;
-  var old = age > 2 * 60 * 1000;
-  el.className = 'stamp' + (old ? ' old' : '');
-  el.textContent = (old ? 'Not updated since ' : 'Up to date · last checked ') + fmtWhen(S.checkedAt) + (old ? ' · tap ↻ to refresh' : '');
+  var el = $('stamp'), dot = $('sdot'); if (!el) return;
+  if (S.fromSnap) { dot.className = 'dot sync'; el.textContent = 'Updating… (saved ' + fmtWhen(S.snapAt) + ')'; return; }
+  if (!S.checkedAt) { dot.className = 'dot sync'; el.textContent = 'Connecting…'; return; }
+  var old = Date.now() - S.checkedAt.getTime() > 2 * 60 * 1000;
+  dot.className = 'dot' + (old ? ' old' : '');
+  el.textContent = old ? 'Not updated since ' + fmtWhen(S.checkedAt) + ' · tap to refresh' : 'Up to date · ' + fmtWhen(S.checkedAt).replace(/^Today, /, '');
 }
 function modalOpen(){ return $('overlay').classList.contains('show'); }
 function busyUser(){ return modalOpen() || (S.tab === 'add' && S.dirty) || $('busy').classList.contains('show'); }
@@ -733,7 +750,7 @@ function showStale(){
   a.classList.add('show');
 }
 function reload(manual){
-  var b = $('refBtn'); b.classList.add('spin');
+  var b = $('refBtn'); b.classList.add('spin'); if (manual) { $('sdot').className = 'dot sync'; $('stamp').textContent = 'Refreshing…'; }
   return call('apiInit', TOKEN, clientInfo()).then(function(d){
     b.classList.remove('spin');
     if (manual && modalOpen()) closeModal();
@@ -741,15 +758,16 @@ function reload(manual){
     S.fromSnap = false; S.data = d; render();
     if (manual) toast('Up to date');
   }, function(e){
-    b.classList.remove('spin'); S.fails = (S.fails || 0) + 1;
+    b.classList.remove('spin'); S.fails = (S.fails || 0) + 1; paintStamp();
     if (S.fails >= 2 || manual) showStale();
     if (manual) toast('Could not refresh. Tap the orange bar to reload the page.', true);
     throw e;
   });
 }
 function checkForUpdates(force){
+  if (polling && Date.now() - pollStart > 60000) polling = false;   // watchdog: never stay stuck on an old request
   if (polling || document.hidden || !S.data) return;
-  polling = true;
+  polling = true; pollStart = Date.now();
   var p = force ? reload(false) : call('apiVersion', TOKEN).then(function(res){
     var parts = String(res).split('|'), v = parts[0];
     if (checkBuild(parts[1])) return;
@@ -766,7 +784,8 @@ function checkForUpdates(force){
 // Timer: normal check every 20s. If the laptop/phone was asleep (big gap), do a full refresh.
 setInterval(function(){
   var now = Date.now(), gap = now - lastTick; lastTick = now;
-  if (gap > 5 * 60 * 1000 && !busyUser()) checkForUpdates(true); else checkForUpdates(false);
+  var behind = S.checkedAt && now - S.checkedAt.getTime() > 2 * 60 * 1000;   // fell behind: do a full refresh
+  if ((gap > 5 * 60 * 1000 || behind) && !busyUser()) checkForUpdates(true); else checkForUpdates(false);
   paintStamp();
 }, POLL_MS);
 function onWake(){
