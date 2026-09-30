@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="app-build" content="20260930214059">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -159,6 +161,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
+var APP_BUILD = '20260930214059';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
@@ -255,7 +258,8 @@ function render(){
   h += '<div class="stamp" id="stamp"></div>';
   h += '<div class="btns" style="margin-top:14px"><button class="btn ghost block" onclick="openHomeHelp()">📱 Add Loan Tracker to your phone\'s home screen</button></div>';
   $('app').innerHTML = h;
-  S.checkedAt = new Date(); S.fails = 0; $('stale').classList.remove('show'); paintStamp();
+  if (S.fromSnap) { S.checkedAt = S.snapAt; } else { S.checkedAt = new Date(); S.fails = 0; $('stale').classList.remove('show'); saveSnap(); }
+  paintStamp();
   if (S.tab === 'add') bindForm(null);
 }
 function setTab(t){ S.tab = t; render(); window.scrollTo(0,0); }
@@ -667,6 +671,31 @@ function openHomeHelp(){
   openModal(modalHead('Add to home screen') + '<p style="font-size:14px;margin-top:0">Do this once. After that, Loan Tracker opens like an app with one tap.</p>' + (ios ? iphone + android : android + iphone));
 }
 
+// ---------- instant start (saved copy) ----------
+var SNAP_KEY = 'lt_snap_v1';
+function saveSnap(){ try { localStorage.setItem(SNAP_KEY, JSON.stringify({ token: TOKEN, at: Date.now(), data: S.data })); } catch(e) {} }
+function loadSnap(){
+  try { var o = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); if (o && o.token === TOKEN && o.data && o.data.user) return o; } catch(e) {}
+  return null;
+}
+
+// ---------- always run the latest version (GitHub copy) ----------
+function checkBuild(serverBuild){
+  if (!HOSTED || !APP_BUILD || !serverBuild || String(serverBuild) === '0' || String(serverBuild) === APP_BUILD) return false;
+  var key = 'lt_upd_' + serverBuild, tries = 0;
+  try { tries = Number(sessionStorage.getItem(key) || 0); } catch(e) {}
+  if (tries >= 2) return false;                        // never loop; GitHub may need a minute to publish
+  try { sessionStorage.setItem(key, String(tries + 1)); } catch(e) {}
+  if (busyUser()) { $('upd').textContent = 'A new version of Loan Tracker is available · Tap to update'; $('upd').onclick = function(){ goLatest(serverBuild); }; $('upd').classList.add('show'); return true; }
+  goLatest(serverBuild); return true;
+}
+function goLatest(build){
+  var base = location.pathname, url = base + '?t=' + encodeURIComponent(TOKEN) + '&v=' + encodeURIComponent(build);
+  var done = function(){ location.replace(url); };
+  // Refresh the browser's stored copies first, then open the fresh page.
+  Promise.all([fetch(base + '?v=' + encodeURIComponent(build), { cache: 'reload' }), fetch('config.js?v=' + encodeURIComponent(build), { cache: 'reload' })]).then(done, done);
+}
+
 // ---------- live updates ----------
 var POLL_MS = 20000, polling = false, lastTick = Date.now();
 function fmtWhen(d){
@@ -679,6 +708,7 @@ function fmtWhen(d){
 }
 function paintStamp(){
   var el = $('stamp'); if (!el) return;
+  if (S.fromSnap) { el.className = 'stamp'; el.textContent = 'Showing saved data from ' + fmtWhen(S.snapAt) + ' · updating…'; return; }
   var age = S.checkedAt ? Date.now() - S.checkedAt.getTime() : 0;
   var old = age > 2 * 60 * 1000;
   el.className = 'stamp' + (old ? ' old' : '');
@@ -697,7 +727,8 @@ function reload(manual){
   return call('apiInit', TOKEN, clientInfo()).then(function(d){
     b.classList.remove('spin');
     if (manual && modalOpen()) closeModal();
-    S.data = d; render();
+    if (checkBuild(d.clientBuild)) return;
+    S.fromSnap = false; S.data = d; render();
     if (manual) toast('Up to date');
   }, function(e){
     b.classList.remove('spin'); S.fails = (S.fails || 0) + 1;
@@ -709,9 +740,11 @@ function reload(manual){
 function checkForUpdates(force){
   if (polling || document.hidden || !S.data) return;
   polling = true;
-  var p = force ? reload(false) : call('apiVersion', TOKEN).then(function(v){
+  var p = force ? reload(false) : call('apiVersion', TOKEN).then(function(res){
+    var parts = String(res).split('|'), v = parts[0];
+    if (checkBuild(parts[1])) return;
     if (String(v) === String(S.data.version)) { S.checkedAt = new Date(); S.fails = 0; paintStamp(); return; }
-    if (busyUser()) { $('upd').classList.add('show'); S.checkedAt = new Date(); paintStamp(); }
+    if (busyUser()) { $('upd').textContent = 'New updates available · Tap to refresh'; $('upd').onclick = function(){ reload(true); }; $('upd').classList.add('show'); S.checkedAt = new Date(); paintStamp(); }
     else return reload(false).then(function(){ toast('Updated with latest changes'); });
   });
   p.then(function(){ polling = false; }, function(){
@@ -744,7 +777,9 @@ if (!TOKEN) {
   $('app').innerHTML = '<div class="balance"><div class="lbl">Welcome</div><p>Please open Loan Tracker using the personal link from your email (the <b>Open Loan Tracker</b> button).</p></div>';
   throw new Error('No token');
 }
-call('apiInit', TOKEN, clientInfo()).then(function(d){ S.data = d; render(); }, function(e){
+(function(){ var snap = loadSnap(); if (snap) { S.fromSnap = true; S.snapAt = new Date(snap.at); S.data = snap.data; try { render(); } catch(e) { S.fromSnap = false; } } })();
+call('apiInit', TOKEN, clientInfo()).then(function(d){ if (checkBuild(d.clientBuild)) return; S.fromSnap = false; S.data = d; render(); }, function(e){
+  if (S.fromSnap) { showStale(); toast('Could not update. Showing saved data.', true); return; }
   $('app').innerHTML = '<div class="balance"><div class="lbl">Could not load</div><p>' + esc(e.message) + '</p></div>';
 });
 </script>
