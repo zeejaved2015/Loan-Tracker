@@ -6,7 +6,7 @@
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="app-build" content="20260930200640">
+<meta name="app-build" content="20261003101735">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -170,7 +170,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
-var APP_BUILD = '20260930200640';   // set automatically in the GitHub copy
+var APP_BUILD = '20261003101735';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
@@ -297,7 +297,9 @@ function activityLine(a){
   if (!a) return '';
   if (!a.firstOpenedAt) return '<div class="act">⏳ Has not opened the app yet' + (a.linkSentAt ? ' · link sent ' + esc(fmtTs(a.linkSentAt)) : '') + '</div>';
   return '<div class="act">✅ First opened <b>' + esc(fmtTs(a.firstOpenedAt)) + '</b></div>' +
-    '<div class="act">👁 Last seen <b>' + esc(fmtTs(a.lastSeenAt || a.firstOpenedAt)) + '</b>' + (a.device ? ' · ' + esc(a.device) : '') + '</div>' +
+    (a.lastSeenAt && Date.now() - Number(a.lastSeenAt) < 3 * 60 * 1000
+      ? '<div class="act" style="color:var(--ok)">🟢 <b style="color:var(--ok)">Active now</b>' + (a.device ? ' · ' + esc(a.device) : '') + '</div>'
+      : '<div class="act">👁 Last seen <b>' + esc(fmtTs(a.lastSeenAt || a.firstOpenedAt)) + '</b>' + (a.device ? ' · ' + esc(a.device) : '') + '</div>') +
     '<div class="act">' + (a.installedAt ? '📱 On home screen since <b>' + esc(fmtTs(a.installedAt)) + '</b>' : '📱 Not opened from a home screen icon yet') + '</div>';
 }
 function activityFor(name, role){ return (S.data.activity || []).filter(function(a){ return a.name === name && a.role === role; })[0]; }
@@ -454,6 +456,7 @@ function openDetail(id){
   h += '<div class="btns">';
   if (t.hasReceipt) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">View receipt</button>';
   if (isAdmin() && t.hasReceiverCopy) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receiverReceipt\')">Receiver copy</button>';
+  if (t.hasProof) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'proof\')">Receiver\'s bank screenshot</button>';
   if (t.hasSignature) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'signature\')">View signature</button>';
   h += '</div><div class="btns">';
   if (!closed()) {
@@ -625,6 +628,8 @@ function openSign(id){
     '<p class="hint" style="margin:8px 0 0">Tip: check your bank app for a payment of this amount on or after this date. The sender name in the bank may appear slightly differently, for example with the transfer company\'s name.</p>' +
     (t.hasReceipt ? '<div class="btns"><button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">View receipt</button></div><div id="viewer" class="viewer" style="margin-top:12px"></div>' : '') +
     '<div class="f" style="margin-top:14px"><label class="check"><input type="checkbox" id="sgOk"><span>I confirm that <b>' + usd(t.amount) + '</b> has been received in my account.</span></label></div>' +
+    '<div class="f"><label class="l">Screenshot from your bank app (required)</label><input type="file" id="sgProof" accept="image/*,application/pdf">' +
+    '<div class="hint">Open your bank app, find this payment and take a screenshot showing the <b>amount, date and sender name</b>. Then choose it here.</div></div>' +
     '<div class="f"><label class="l">Your full name</label><input type="text" id="sgName" autocomplete="name" value="' + esc(localName()) + '"></div>' +
     '<div class="f"><label class="l">Signature</label><canvas class="sig" id="sgPad"></canvas><div class="hint">Sign with your finger. <a href="#" onclick="PAD.clear();return false">Clear</a></div></div>' +
     '<button class="btn block" id="sgBtn">Confirm &amp; sign</button><div class="hint" style="margin-top:8px">Once signed, this payment is locked and the remaining balance is updated.</div>';
@@ -633,9 +638,16 @@ function openSign(id){
     $('sgBtn').addEventListener('click', function(){
       if (!$('sgOk').checked) return toast('Please tick the confirmation box.', true);
       var name = $('sgName').value.trim(); if (name.length < 3) return toast('Please write your full name.', true);
+      var pf = $('sgProof').files[0];
+      if (!pf) return toast('Please add a screenshot from your bank app showing this payment.', true);
       if (!PAD.hasInk()) return toast('Please sign in the box.', true);
       saveName(name);
-      run('apiConfirmTxn', TOKEN, t.id, { received: true, signerName: name, signature: PAD.data() }).then(function(d){ S.data = d; closeModal(); render(); toast('Thank you, payment confirmed.'); }, function(){});
+      var sig = PAD.data();
+      busy(true);
+      readFile(pf).then(function(proof){
+        busy(false);
+        return run('apiConfirmTxn', TOKEN, t.id, { received: true, signerName: name, signature: sig, bankProof: proof });
+      }).then(function(d){ S.data = d; closeModal(); render(); toast('Thank you, payment confirmed.'); }, function(e){ busy(false); if (e && /file/i.test(e.message || '')) toast(e.message, true); });
     });
   });
 }
@@ -715,6 +727,20 @@ function goLatest(build){
   Promise.all([fetch(base + '?v=' + encodeURIComponent(build), { cache: 'reload' }), fetch('config.js?v=' + encodeURIComponent(build), { cache: 'reload' })]).then(done, done);
 }
 
+// ---------- live member activity (admins) ----------
+var actBusy = false;
+function refreshActivity(){
+  if (actBusy) return; actBusy = true;
+  call('apiActivity', TOKEN).then(function(r){
+    actBusy = false;
+    S.data.activity = r.activity; S.data.actVersion = r.actVersion;
+    if ((S.tab === 'summary' || S.tab === 'manage') && !busyUser()) { var y = window.scrollY; render(); window.scrollTo(0, y); }
+    else saveSnap();
+  }, function(){ actBusy = false; });
+}
+// "Active now" fades to "Last seen" on its own, so redraw those screens every minute.
+setInterval(function(){ if ((S.tab === 'summary' || S.tab === 'manage') && S.data && !busyUser() && !document.hidden) { var y = window.scrollY; render(); window.scrollTo(0, y); } }, 60000);
+
 // ---------- live updates ----------
 var POLL_MS = 20000, polling = false, pollStart = 0, lastTick = Date.now();
 function fmtTs(ms){ return ms ? fmtWhen(new Date(Number(ms))) : ''; }
@@ -768,8 +794,9 @@ function checkForUpdates(force){
   if (polling && Date.now() - pollStart > 60000) polling = false;   // watchdog: never stay stuck on an old request
   if (polling || document.hidden || !S.data) return;
   polling = true; pollStart = Date.now();
-  var p = force ? reload(false) : call('apiVersion', TOKEN).then(function(res){
+  var p = force ? reload(false) : call('apiVersion', TOKEN, clientInfo()).then(function(res){
     var parts = String(res).split('|'), v = parts[0];
+    if (isAdmin() && parts[2] && String(parts[2]) !== String(S.data.actVersion)) refreshActivity();
     if (checkBuild(parts[1])) return;
     if (String(v) === String(S.data.version)) { S.checkedAt = new Date(); S.fails = 0; paintStamp(); return; }
     if (busyUser()) { $('upd').textContent = 'New updates available · Tap to refresh'; $('upd').onclick = function(){ reload(true); }; $('upd').classList.add('show'); S.checkedAt = new Date(); paintStamp(); }
