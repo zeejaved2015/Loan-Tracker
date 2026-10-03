@@ -6,7 +6,7 @@
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="app-build" content="20261003101735">
+<meta name="app-build" content="20261003104700">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -138,6 +138,13 @@ textarea{min-height:110px;resize:vertical}
 .dot.old{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
 .dot.sync{background:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25);animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
+.presence{display:none !important;flex-wrap:wrap;gap:6px !important;justify-content:flex-start !important;margin-top:8px}
+.presence.show{display:flex !important}
+.pchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:3px 10px 3px 8px;font-size:11.5px;max-width:100%}
+.pchip b{font-weight:700}
+.pchip .t{opacity:.72;white-space:nowrap}
+.pdot{width:7px;height:7px;border-radius:50%;flex:none;background:rgba(255,255,255,.4)}
+.pdot.on{background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.22)}
 .ver{font-size:11px;color:rgba(255,255,255,.62);white-space:nowrap}
 .topbtn{border:0;background:rgba(255,255,255,.16);color:#fff;border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none}
 .topbtn.spin{animation:spin 1s linear infinite}
@@ -154,7 +161,8 @@ textarea{min-height:110px;resize:vertical}
 <div class="upd" id="upd" onclick="reload(true)">New updates available · Tap to refresh</div>
 <a class="upd warn" id="stale" target="_top" href="#">This page was open for a long time · Tap here to reload</a>
 <header class="top"><div class="row"><h1 id="appName">Loan Tracker</h1><div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="topbtn" id="refBtn" onclick="reload(true)" aria-label="Refresh" title="Refresh">↻</button></div></div>
-<div class="row hsub"><button class="hstat" id="hstat" onclick="reload(true)" title="Tap to refresh now"><i class="dot sync" id="sdot"></i><span id="stamp">Connecting…</span></button><span class="ver" id="ver"></span></div></header>
+<div class="row hsub"><button class="hstat" id="hstat" onclick="reload(true)" title="Tap to refresh now"><i class="dot sync" id="sdot"></i><span id="stamp">Connecting…</span></button><span class="ver" id="ver"></span></div>
+<div class="row presence" id="presence"></div></header>
 <div class="wrap" id="app"><div class="balance"><div class="lbl">Loading…</div></div></div>
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <div class="busy" id="busy"><div class="spinner"></div></div>
@@ -170,7 +178,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
-var APP_BUILD = '20261003101735';   // set automatically in the GitHub copy
+var APP_BUILD = '20261003104700';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
@@ -274,6 +282,7 @@ function render(){
   else if (S.tab === 'manage') h += renderManage();
   else h += renderSummary();
   var vb = APP_BUILD || d.clientBuild || '';
+  paintPresence();
   $('ver').textContent = (vb && vb !== '0') ? 'Version ' + fmtBuild(vb) + (HOSTED ? '' : ' · Google') : '';
   h += '<div class="btns" style="margin-top:22px"><button class="btn ghost block" onclick="openHomeHelp()">📱 Add Loan Tracker to your phone\'s home screen</button></div>';
   $('app').innerHTML = h;
@@ -293,11 +302,38 @@ function renderPayments(){
   }).join('') + '</div>';
 }
 
+var ACTIVE_MS = 100 * 1000;   // seen in the last ~1.5 minutes and has not closed the app
+function isActive(a){ return !!(a && a.lastSeenAt && Date.now() - Number(a.lastSeenAt) < ACTIVE_MS && !(a.leftAt && Number(a.leftAt) >= Number(a.lastSeenAt))); }
+function shortWhen(ms){
+  if (!ms) return '';
+  var d = new Date(Number(ms)), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  var t = d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+  if (d.toDateString() === now.toDateString()) return t;
+  if (d.toDateString() === y.toDateString()) return 'Yesterday ' + t;
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate() + ' ' + MON[d.getMonth()];
+}
+/** Header strip for owner/admin: everyone else's live status. Receivers see nothing here. */
+function paintPresence(){
+  var el = $('presence'); if (!el) return;
+  if (!S.data || !isAdmin() || !(S.data.activity || []).length) { el.classList.remove('show'); el.innerHTML = ''; return; }
+  var me = S.data.user, order = { owner: 0, admin: 1, receiver: 2 };
+  var list = S.data.activity.filter(function(a){ return a.active && !(a.name === me.name && a.role === me.role); })
+    .sort(function(a, b){ return (isActive(b) - isActive(a)) || (order[a.role] - order[b.role]); });
+  if (!list.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
+  el.innerHTML = list.map(function(a){
+    var on = isActive(a);
+    var txt = on ? 'Active now' : (a.lastSeenAt ? 'seen ' + shortWhen(a.lastSeenAt) : 'not opened yet');
+    return '<span class="pchip" title="' + esc(ROLE_LABEL[a.role] || a.role) + '"><i class="pdot' + (on ? ' on' : '') + '"></i><b>' + esc(a.name) + '</b><span class="t">' + esc(txt) + '</span></span>';
+  }).join('');
+  el.classList.add('show');
+}
+
 function activityLine(a){
   if (!a) return '';
   if (!a.firstOpenedAt) return '<div class="act">⏳ Has not opened the app yet' + (a.linkSentAt ? ' · link sent ' + esc(fmtTs(a.linkSentAt)) : '') + '</div>';
   return '<div class="act">✅ First opened <b>' + esc(fmtTs(a.firstOpenedAt)) + '</b></div>' +
-    (a.lastSeenAt && Date.now() - Number(a.lastSeenAt) < 3 * 60 * 1000
+    (isActive(a)
       ? '<div class="act" style="color:var(--ok)">🟢 <b style="color:var(--ok)">Active now</b>' + (a.device ? ' · ' + esc(a.device) : '') + '</div>'
       : '<div class="act">👁 Last seen <b>' + esc(fmtTs(a.lastSeenAt || a.firstOpenedAt)) + '</b>' + (a.device ? ' · ' + esc(a.device) : '') + '</div>') +
     '<div class="act">' + (a.installedAt ? '📱 On home screen since <b>' + esc(fmtTs(a.installedAt)) + '</b>' : '📱 Not opened from a home screen icon yet') + '</div>';
@@ -515,7 +551,7 @@ function renderForm(t){
   h += '<div class="grid2"><div class="f"><label class="l">Method</label><select name="method"><option value="">Select</option>' + d.methods.map(function(m){ return opt(m, t ? t.method : ''); }).join('') + '</select></div>' +
        '<div class="f"><label class="l">Transfer ref # (optional)</label><input type="text" name="reference" value="' + esc(t ? t.reference : '') + '"></div></div>';
   h += '<div class="grid2"><div class="f"><label class="l">Local amount paid (optional)</label><input type="number" step="0.01" min="0" name="localAmount" inputmode="decimal" value="' + esc(t ? t.localAmount : '') + '" placeholder="e.g. 370"></div>' +
-       '<div class="f"><label class="l">Currency</label><select name="localCurrency">' + d.currencies.map(function(c){ return opt(c, t ? t.localCurrency : ''); }).join('') + '</select></div></div>';
+       '<div class="f"><label class="l">Currency</label><select name="localCurrency">' + d.currencies.map(function(c){ return opt(c, t && t.localCurrency ? t.localCurrency : 'USD'); }).join('') + '</select></div></div>';
   h += '<div class="f"><label class="l">Receipt' + (t ? ' (leave empty to keep current)' : '') + '</label><input type="file" name="receipt" accept="image/*,application/pdf"' + (t ? '' : ' required') + '><div class="hint">Photo or PDF. Admins always see this full receipt.</div></div>';
   h += '<div class="f"><label class="l">Receiver copy (optional)</label><input type="file" name="receiverReceipt" accept="image/*,application/pdf"><div class="hint">Wise/Remitly/bank receipts show the sender\'s name and currency. If you don\'t want the receiver to see that, upload a cropped copy here and the receiver will see this one instead.</div></div>';
   if (!t) h += '<div class="f"><label class="l">Has the money been delivered?</label>' +
@@ -733,11 +769,12 @@ function refreshActivity(){
   if (actBusy) return; actBusy = true;
   call('apiActivity', TOKEN).then(function(r){
     actBusy = false;
-    S.data.activity = r.activity; S.data.actVersion = r.actVersion;
+    S.data.activity = r.activity; S.data.actVersion = r.actVersion; paintPresence();
     if ((S.tab === 'summary' || S.tab === 'manage') && !busyUser()) { var y = window.scrollY; render(); window.scrollTo(0, y); }
     else saveSnap();
   }, function(){ actBusy = false; });
 }
+setInterval(paintPresence, 20000);
 // "Active now" fades to "Last seen" on its own, so redraw those screens every minute.
 setInterval(function(){ if ((S.tab === 'summary' || S.tab === 'manage') && S.data && !busyUser() && !document.hidden) { var y = window.scrollY; render(); window.scrollTo(0, y); } }, 60000);
 
@@ -821,6 +858,15 @@ function onWake(){
   checkForUpdates(away > 5 * 60 * 1000 && !busyUser());
 }
 document.addEventListener('visibilitychange', onWake);
+function sendBye(){
+  if (!TOKEN || !S.data) return;
+  try {
+    if (HOSTED && navigator.sendBeacon) navigator.sendBeacon(API_URL, new Blob([JSON.stringify({ fn: 'apiBye', args: [TOKEN] })], { type: 'text/plain;charset=utf-8' }));
+    else if (!HOSTED) google.script.run.apiBye(TOKEN);
+  } catch(e) {}
+}
+document.addEventListener('visibilitychange', function(){ if (document.hidden) sendBye(); });
+window.addEventListener('pagehide', sendBye);
 window.addEventListener('focus', onWake);
 window.addEventListener('online', function(){ checkForUpdates(true); });
 
