@@ -6,7 +6,7 @@
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="app-build" content="20261003104700">
+<meta name="app-build" content="20261003110437">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -19,12 +19,14 @@
 <style>
 :root{
   --bg:#f3f5f8;--card:#ffffff;--ink:#15202b;--muted:#687587;--line:#e2e7ee;
+  --hdr:linear-gradient(135deg,#0b2a45 0%,#0e3b55 55%,#0f5458 100%);
   --brand:#0f2e4a;--accent:#0f766e;--accent-ink:#ffffff;--accent-soft:#e3f3f0;
   --warn:#a15c07;--warn-soft:#fff3e0;--ok:#15803d;--ok-soft:#e6f5ea;--danger:#b42318;--danger-soft:#fdecea;
   --r:14px;--shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
 }
 @media (prefers-color-scheme: dark){:root{
   --bg:#0d1319;--card:#151e28;--ink:#e6ecf2;--muted:#95a3b3;--line:#243140;
+  --hdr:linear-gradient(135deg,#071a2b 0%,#0a2a3d 55%,#0b3b40 100%);
   --brand:#0a2236;--accent:#2bb3a3;--accent-ink:#06201d;--accent-soft:#113029;
   --warn:#f2a54a;--warn-soft:#33240e;--ok:#5ad08a;--ok-soft:#0f2a1a;--danger:#f58b82;--danger-soft:#3a1714;
   --shadow:none;
@@ -34,12 +36,23 @@ html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px 96px}
-header.top{background:var(--brand);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 72px}
-header.top .row{max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
-header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
+header.top{background:var(--hdr);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 72px;position:relative}
+header.top::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(600px 200px at 85% -40px,rgba(43,179,163,.28),transparent 70%)}
+.hwrap{max-width:720px;margin:0 auto;position:relative;z-index:1}
+.hgrid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.hgrid h1{display:flex;align-items:center;gap:8px;font-size:18px;margin:0;letter-spacing:.2px;white-space:nowrap}
+.logo{display:inline-flex;width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.12);align-items:center;justify-content:center}
+.hright{justify-self:end;display:flex;align-items:center;gap:10px;min-width:0}
+.hgrid .hstat{justify-self:center}
+.hsub2{display:flex;align-items:flex-start;justify-content:space-between;gap:8px 12px;margin-top:12px;flex-wrap:wrap}
+.hsub2 .ver{margin-left:auto;padding-top:4px}
+@media (max-width:600px){
+  .hgrid{grid-template-columns:1fr auto;grid-template-areas:"t r" "s s";row-gap:10px}
+  .hgrid h1{grid-area:t}.hright{grid-area:r}.hgrid .hstat{grid-area:s}
+}
 .who{font-size:13px;opacity:.9;text-align:right}
 .chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.16);margin-left:6px;text-transform:uppercase;letter-spacing:.4px}
-.balance{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;margin-top:-56px;border:1px solid var(--line)}
+.balance{position:relative;z-index:2;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;margin-top:-56px;border:1px solid var(--line)}
 .balance .lbl{color:var(--muted);font-size:13px}
 .balance .big{font-size:32px;font-weight:700;letter-spacing:-.5px;margin:2px 0 10px;font-variant-numeric:tabular-nums}
 .bar{height:10px;background:var(--line);border-radius:999px;overflow:hidden}
@@ -131,16 +144,15 @@ textarea{min-height:110px;resize:vertical}
 .pill.off{background:var(--line);color:var(--muted)}
 .danger-zone{border:1px solid rgba(180,35,24,.35);background:var(--danger-soft);border-radius:var(--r);padding:16px}
 .danger-zone h3{margin:0 0 6px;font-size:15px;color:var(--danger)}
-.hsub{margin-top:10px !important;flex-wrap:wrap;gap:6px 10px !important;justify-content:space-between}
-.hstat{display:inline-flex;align-items:center;gap:7px;border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:999px;padding:5px 11px 5px 9px;font-size:12px;font-weight:600;cursor:pointer;max-width:100%}
+.hstat{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;border-radius:999px;padding:5px 11px 5px 9px;font-size:12px;font-weight:600;cursor:pointer;max-width:100%}
 .hstat span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:8px;height:8px;border-radius:50%;flex:none;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.22)}
 .dot.old{background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.25)}
 .dot.sync{background:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25);animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
-.presence{display:none !important;flex-wrap:wrap;gap:6px !important;justify-content:flex-start !important;margin-top:8px}
-.presence.show{display:flex !important}
-.pchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:3px 10px 3px 8px;font-size:11.5px;max-width:100%}
+.presence{display:none;flex-wrap:wrap;gap:6px;justify-content:flex-start;align-items:center}
+.presence.show{display:flex}
+.pchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(4px);color:#fff;border-radius:999px;padding:3px 10px 3px 8px;font-size:11.5px;max-width:100%}
 .pchip b{font-weight:700}
 .pchip .t{opacity:.72;white-space:nowrap}
 .pdot{width:7px;height:7px;border-radius:50%;flex:none;background:rgba(255,255,255,.4)}
@@ -160,9 +172,14 @@ textarea{min-height:110px;resize:vertical}
 <body>
 <div class="upd" id="upd" onclick="reload(true)">New updates available · Tap to refresh</div>
 <a class="upd warn" id="stale" target="_top" href="#">This page was open for a long time · Tap here to reload</a>
-<header class="top"><div class="row"><h1 id="appName">Loan Tracker</h1><div style="display:flex;align-items:center;gap:10px"><div class="who" id="who"></div><button class="topbtn" id="refBtn" onclick="reload(true)" aria-label="Refresh" title="Refresh">↻</button></div></div>
-<div class="row hsub"><button class="hstat" id="hstat" onclick="reload(true)" title="Tap to refresh now"><i class="dot sync" id="sdot"></i><span id="stamp">Connecting…</span></button><span class="ver" id="ver"></span></div>
-<div class="row presence" id="presence"></div></header>
+<header class="top"><div class="hwrap">
+  <div class="hgrid">
+    <h1><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="4" y="3" width="12" height="16" rx="2" fill="#fff"/><path d="M7 8h6M7 11h6M7 14h3" stroke="#9fb3c8" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="17" r="5" fill="#2bb3a3" stroke="#0e3b55" stroke-width="1.5"/><path d="M14.8 17.1l1.5 1.5 2.9-3" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="appName">Loan Tracker</span></h1>
+    <button class="hstat" id="hstat" onclick="reload(true)" title="Tap to refresh now"><i class="dot sync" id="sdot"></i><span id="stamp">Connecting…</span></button>
+    <div class="hright"><div class="who" id="who"></div><button class="topbtn" id="refBtn" onclick="reload(true)" aria-label="Refresh" title="Refresh">↻</button></div>
+  </div>
+  <div class="hsub2"><div class="presence" id="presence"></div><span class="ver" id="ver"></span></div>
+</div></header>
 <div class="wrap" id="app"><div class="balance"><div class="lbl">Loading…</div></div></div>
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <div class="busy" id="busy"><div class="spinner"></div></div>
@@ -178,7 +195,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
-var APP_BUILD = '20261003104700';   // set automatically in the GitHub copy
+var APP_BUILD = '20261003110437';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
