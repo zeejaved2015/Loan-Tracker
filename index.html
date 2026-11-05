@@ -6,7 +6,7 @@
 <title>Loan Tracker</title>
 <meta name="theme-color" content="#0f2e4a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="app-build" content="20261011194040">
+<meta name="app-build" content="20261105113625">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
@@ -165,6 +165,14 @@ textarea{min-height:110px;resize:vertical}
 .stamp{font-size:12px;color:var(--muted);text-align:center;margin-top:10px}
 .stamp.old{color:var(--warn);font-weight:700}
 .upd.warn{background:var(--warn);color:#fff}
+.tl{list-style:none;margin:6px 0 0;padding:0 0 0 4px}
+.tl li{position:relative;padding:0 0 12px 26px;font-size:14px}
+.tl li:before{content:"";position:absolute;left:7px;top:18px;bottom:-2px;width:2px;background:var(--line)}
+.tl li:last-child:before{display:none}
+.tl .ic{position:absolute;left:0;top:1px;width:16px;height:16px;border-radius:50%;background:var(--card);border:2px solid var(--line);font-size:9px;line-height:12px;text-align:center}
+.tl .ic.ok{border-color:var(--ok);background:var(--ok-soft)}.tl .ic.warn{border-color:var(--warn);background:var(--warn-soft)}.tl .ic.info{border-color:var(--accent);background:var(--accent-soft)}
+.tl .w{font-size:12px;color:var(--muted)}
+.remline{color:var(--warn);font-weight:600}
 .split{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);margin-top:8px}
 @media (max-width:380px){.stats{grid-template-columns:1fr 1fr}.people{grid-template-columns:1fr}}
 </style>
@@ -195,7 +203,7 @@ var TOKEN = (function(){
   try { if (t) localStorage.setItem('lt_token', t); else t = localStorage.getItem('lt_token') || ''; } catch(e) {}
   return t;
 })();
-var APP_BUILD = '20261011194040';   // set automatically in the GitHub copy
+var APP_BUILD = '20261105113625';   // set automatically in the GitHub copy
 var HOSTED = !(window.google && google.script && google.script.run);
 var S = { data: null, tab: 'payments' };
 
@@ -316,6 +324,10 @@ function renderPayments(){
   return '<div class="card list">' + list.map(function(t){
     var sub = esc(t.dateSent) + (t.sentByLabel ? ' · ' + (isAdmin() ? '' : 'from ') + esc(t.sentByLabel) : '') + ' · ' + esc(t.id);
     if (t.status === 'Confirmed' && t.signerName) sub += '<br><span style="color:var(--ok);font-weight:600">✓ Confirmed by ' + esc(t.signerName) + '</span>';
+    if (isAdmin() && t.status === 'Pending') {
+      var rs = remindersOf(t), last = rs[rs.length - 1];
+      sub += '<br><span class="remline">' + (last ? '🔔 ' + ordinal(last.n) + ' reminder sent' + (last.at ? ' · ' + esc(fmtTs(last.at)) : '') : '✉ Receivers emailed' + (t.deliveredAt ? ' · ' + esc(fmtTs(t.deliveredAt)) : '')) + '</span>';
+    }
     return '<div class="item" onclick="openDetail(\'' + t.id + '\')"><div class="main"><div class="amt">' + usd(t.amount) + '</div><div class="sub">' + sub + '</div></div>' + pill(t.status) + '</div>';
   }).join('') + '</div>';
 }
@@ -497,9 +509,6 @@ function openDetail(id){
     if (t.notes) rows.push(['Notes', esc(t.notes)]);
     rows.push(['Added', esc(t.addedBy + ', ' + fmtTs(t.createdAt))]);
     rows.push(['Receiver sees', t.hasReceiverCopy ? 'Separate receiver copy' : 'Same receipt (full)']);
-    if (t.deliveredAt) rows.push(['Delivered', esc(fmtTs(t.deliveredAt)) + (t.deliveredBy ? ' (marked by ' + esc(t.deliveredBy) + ')' : '')]);
-    if (t.status === 'Sent') rows.push(['Receiver', 'Not told yet. Tap <b>Mark as Delivered</b> once the money arrives.']);
-    if (t.status === 'Pending') rows.push(['Reminders sent', String(t.reminderCount || 0)]);
   }
   if (t.status === 'Confirmed') {
     rows.push(['Confirmed by (full name)', '<b>' + esc(t.signerName) + '</b>']);
@@ -507,6 +516,7 @@ function openDetail(id){
     if (t.confirmedBy) rows.push(['Receiver account', esc(t.confirmedBy) + (isAdmin() && t.confirmedByEmail ? '<br><span style="color:var(--muted)">' + esc(t.confirmedByEmail) + '</span>' : '')]);
   }
   var h = modalHead('Payment ' + t.id) + '<table class="kv">' + rows.map(function(r){ return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
+  if (isAdmin()) h += timelineHtml(t);
   h += '<div class="btns">';
   if (t.hasReceipt) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receipt\')">' + ((t.receiptCount || 1) > 1 ? 'Receipts (' + t.receiptCount + ')' : 'View receipt') + '</button>';
   if (isAdmin() && t.hasReceiverCopy) h += '<button class="btn ghost" onclick="viewFile(\'' + t.id + '\',\'receiverReceipt\')">Receiver copy</button>';
@@ -829,6 +839,34 @@ setInterval(function(){ if ((S.tab === 'summary' || S.tab === 'manage') && S.dat
 
 // ---------- live updates ----------
 var POLL_MS = 20000, polling = false, pollStart = 0, lastTick = Date.now();
+function ordinal(n){ var s = ['th','st','nd','rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+/** Every reminder sent for a payment, oldest first. Older reminders (sent before history was kept) appear with the last known time. */
+function remindersOf(t){
+  var log = (t.reminderLog || []).slice().sort(function(a, b){ return a.n - b.n; });
+  var count = Math.max(t.reminderCount || 0, log.length), out = [];
+  for (var i = 1; i <= count; i++) {
+    var e = log.filter(function(x){ return x.n === i; })[0];
+    out.push({ n: i, at: e ? e.at : (i === count ? t.lastReminderAt : ''), to: e ? e.to : [] });
+  }
+  return out;
+}
+function timelineHtml(t){
+  var items = [];
+  items.push({ c: 'info', i: '+', t: 'Added by ' + esc(t.addedBy || ''), w: fmtTs(t.createdAt) });
+  if (t.status === 'Sent') items.push({ c: 'warn', i: '…', t: 'Not delivered yet. Receivers <b>not told</b>', w: 'Tap Mark as Delivered when the money arrives' });
+  if (t.deliveredAt) items.push({ c: 'info', i: '✉', t: 'Delivered' + (t.deliveredBy ? ' (marked by ' + esc(t.deliveredBy) + ')' : '') + ': <b>receivers emailed</b>', w: fmtTs(t.deliveredAt) });
+  remindersOf(t).forEach(function(r){
+    items.push({ c: 'warn', i: '🔔', t: '<b>' + ordinal(r.n) + ' reminder</b> sent to receivers' + (r.to && r.to.length ? ' (' + r.to.map(esc).join(', ') + ')' : ''), w: r.at ? fmtTs(r.at) : 'time not recorded' });
+  });
+  if (t.status === 'Pending') {
+    var base = Number(t.lastReminderAt || t.deliveredAt || t.createdAt || 0);
+    if (base) items.push({ c: '', i: '⏱', t: 'Next reminder if still not confirmed', w: fmtTs(base + 24 * 3600 * 1000) });
+  }
+  if (t.status === 'Confirmed') items.push({ c: 'ok', i: '✓', t: '<b>Confirmed</b> by ' + esc(t.signerName || ''), w: fmtTs(t.confirmedAt) });
+  return '<div class="section-title" style="margin:16px 0 6px">History</div><ul class="tl">' + items.map(function(x){
+    return '<li><span class="ic ' + x.c + '">' + x.i + '</span>' + x.t + (x.w ? '<div class="w">' + esc(x.w) + '</div>' : '') + '</li>';
+  }).join('') + '</ul>';
+}
 function fmtTs(ms){ return ms ? fmtWhen(new Date(Number(ms))) : ''; }
 function fmtWhen(d){
   if (!d) return '';
